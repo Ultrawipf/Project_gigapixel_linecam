@@ -38,32 +38,33 @@
 ; Reads 8b wide data
 
 .side_set 1
-wait 1 pin 9 side 0
+;wait 1 pin 9 side 0
 .wrap_target
     wait 1 pin 8 side 0
     ;nop side 0
-    in pins 8 side 1
+    in pins 10 side 1
+    ;push block side 1
     
     wait 0 pin 8 side 1
-    ;nop side 1
-    ;in pins 8 side 0
-    ;push noblock side 0
+    nop side 1
+    ;in pins 10 side 0 ; Commented out to ignore falling edge data due to throughput limits temporarily
+    ;push block side 0
 .wrap
 
 
 
 % c-sdk {
-#define DATADBGPIN 7
+#define DATADBGPIN 4
     static inline void ccddata_program_init(PIO pio, uint sm, uint offset, uint dpinbase, float freq) {
         pio_sm_config c = ccddata_program_get_default_config(offset);
-        for(uint i = dpinbase; i<dpinbase+8; i++){
+        for(uint i = dpinbase; i<dpinbase+10; i++){
             pio_gpio_init(pio, i);
         }
         #ifdef DATADBGPIN
         pio_gpio_init(pio, DATADBGPIN);
         #endif
         // Set the pin direction to input at the PIO
-        pio_sm_set_consecutive_pindirs(pio, sm, dpinbase, 8, false); // Do not override clock pin dirs
+        pio_sm_set_consecutive_pindirs(pio, sm, dpinbase, 10, false); // Do not override clock pin dirs
         sm_config_set_in_pins(&c, dpinbase); // for WAIT, IN
         #ifdef DATADBGPIN
             pio_sm_set_consecutive_pindirs(pio, sm, DATADBGPIN, 1, true);
@@ -73,15 +74,15 @@ wait 1 pin 9 side 0
         sm_config_set_set_pins(&c, dpinbase+6,2); // Dummy set pins for data output
 
         sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-        sm_config_set_in_shift(&c, false, true, 32); // In Shift | shift_direction=right, autopush=false, push_threshold=32
+        sm_config_set_in_shift(&c, false, true, 30); // In Shift | shift_direction=right, autopush=false, push_threshold=32
 
-        //hw_set_bits(&pio->input_sync_bypass, 0x3ffu << dpinbase);
+        // hw_set_bits(&pio->input_sync_bypass, 0x3ffu << dpinbase);
         // Init before clock
         pio_sm_init(pio, sm, offset, &c);
 
         // Setup clock
         if(freq == 0.0f){
-            pio_sm_set_clkdiv(pio, sm, 0);
+            pio_sm_set_clkdiv(pio, sm, 1);
         }else{
             float div = clock_get_hz(clk_sys) / (freq * 2.0f);
             pio_sm_set_clkdiv(pio, sm, div);
