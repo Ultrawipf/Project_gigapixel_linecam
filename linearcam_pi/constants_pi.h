@@ -1,0 +1,12 @@
+#ifndef CONSTANTS_PI_H
+#define CONSTANTS_PI_H
+
+#define RESETPIN 3
+#define MOTLIN_STEPPIN 10
+#define MOTLIN_DIRPIN 9
+#define MOTLIN_DIAGPIN 11
+#define MOTLIN_ENPIN 12
+
+#define MOTLIN_UM_PER_FULLSTEP 30 //200steps/6mm
+
+#endif // CONSTANTS_PI_H
