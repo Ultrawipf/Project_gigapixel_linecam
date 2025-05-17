@@ -1,0 +1,1 @@
+execute "cmake . ; make" here and then execute the graphical app in the subfolder

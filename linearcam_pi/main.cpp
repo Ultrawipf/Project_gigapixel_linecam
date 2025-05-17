@@ -40,10 +40,13 @@ int main(int argc, char* argv[]) {
     if(args.motorargs.is_valid){
         std::cout << "Motor steps:" << args.motorargs.steps << std::endl;
         TMC2209_motor motor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,args.motorargs.serial);
+        motor.verbose = args.verbose;
+        motor.invdir = true;
         if(args.motorargs.home){
             motor.setEnable(true);
-            motor.move(-1000,5000,10);
-            motor.home(10000);
+            motor.setMicrostep(TMC2209_motor::microstep::ms8);
+            motor.move(1000,5000,10);
+            motor.home(-40000);
             motor.setEnable(false);
         }
         if(args.motorargs.steps){

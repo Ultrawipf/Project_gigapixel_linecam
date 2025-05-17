@@ -9,4 +9,6 @@
 
 #define MOTLIN_UM_PER_FULLSTEP 30 //200steps/6mm
 
+#define MOTOR_SERIAL "/dev/ttyAMA0"
+
 #endif // CONSTANTS_PI_H
