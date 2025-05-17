@@ -15,7 +15,7 @@ struct StepperArgs : public argparse::Args {
     bool &home             = flag("h,home", "Home stepper");
     int &steps             = kwarg("s", "Move stepper s steps").set_default(0);
     int &speed             = kwarg("v", "Speed v").set_default(500);
-    int &accel             = kwarg("a", "Accel a").set_default(100);
+    int &accel             = kwarg("a", "Accel a").set_default(20);
     std::string& serial = kwarg("p","serial port, default /dev/ttyAMA0").set_default("/dev/ttyAMA0");
 };
 
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
             motor.setEnable(true);
             motor.setMicrostep(TMC2209_motor::microstep::ms8);
             motor.move(1000,5000,10);
-            motor.home(-40000);
+            motor.home(-50000);
             motor.setEnable(false);
         }
         if(args.motorargs.steps){

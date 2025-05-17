@@ -39,12 +39,12 @@ void MainWindow::on_pushButton_debug_home_clicked()
 
 void MainWindow::on_pushButton_debug_left_clicked()
 {
-    motors.slideMotor.move(-100,1000,10);
+    motors.slideMotor.move(-ui->spinBox_debug_steps->value(),1000,10);
 }
 
 
 void MainWindow::on_pushButton_debug_right_clicked()
 {
-    motors.slideMotor.move(100,1000,10);
+    motors.slideMotor.move(ui->spinBox_debug_steps->value(),1000,10);
 }
 
