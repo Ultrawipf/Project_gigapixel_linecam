@@ -113,10 +113,14 @@ public:
     };
 
     TMC2209_motor(int step,int dir, int en=-1,int diag=-1, const std::string& serial="",uint8_t addr = 0);
+    ~TMC2209_motor();
+    void init();
     void setUartAddr(uint8_t addr);
 
     int move(int64_t steps,float speed,float accel);
     void moveTo(int64_t position,float speed,float accel);
+
+    bool ping();
 
     bool home(int64_t maxSteps); // Home motor using stallguard, returns false on error
     void setEnable(bool enable);
@@ -151,6 +155,8 @@ public:
 
     bool updateConfigFromChip();
 
+    bool isMoving();
+
 protected:
     int speedToUs(float speed);
 
@@ -170,12 +176,13 @@ private:
     const int diag_pin;
     const float speedmultramp = 10;
     uint8_t addr;
-    const std::string& serialportname;
+    const std::string serialportname;
     int serialport = 0;
 
     int curStepMult = 8;
 
     bool enabled = false;
+    bool movingFlag = false;
 
     static constexpr uint8_t syncbyte = 0x55; // Different than the reply of 0x05
 

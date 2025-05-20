@@ -7,21 +7,30 @@
 TMC2209_motor::TMC2209_motor(int step,int dir, int en,int diag,const std::string& serial,uint8_t addr)
     : step_pin(step),dir_pin(dir),en_pin(en),diag_pin(diag),serialportname(serial),addr(addr)
 {
+    std::cout << "Motor serial: " << serial << std::endl;
+    //updateConfigFromChip();
+}
+
+TMC2209_motor::~TMC2209_motor(){
+    setEnable(false);
+}
+
+void TMC2209_motor::init(){
     wiringPiSetupGpio();
-    if(step>=0)
-        pinMode(step, OUTPUT);
-    if(dir>=0)
-        pinMode(dir, OUTPUT);
-    if(en>=0)
-        pinMode(en, OUTPUT);
-    if(diag>=0){
-        pinMode(diag, INPUT);
+    if(step_pin>=0)
+        pinMode(step_pin, OUTPUT);
+    if(dir_pin>=0)
+        pinMode(dir_pin, OUTPUT);
+    if(en_pin>=0)
+        pinMode(en_pin, OUTPUT);
+    if(diag_pin>=0){
+        pinMode(diag_pin, INPUT);
     }
     if(!digitalRead(RESETPIN)){
         pinMode(RESETPIN, OUTPUT);
         digitalWrite(RESETPIN, 1);
     }
-    //updateConfigFromChip();
+    updateConfigFromChip();
 }
 
 bool TMC2209_motor::updateConfigFromChip(){
@@ -50,6 +59,10 @@ int64_t TMC2209_motor::getPos(){
 }
 void TMC2209_motor::setPos(int64_t pos){
     this->pos = pos;
+}
+
+bool TMC2209_motor::isMoving(){
+    return this->movingFlag;
 }
 
 // UART Helper functions ------------------------
@@ -158,7 +171,7 @@ uint32_t TMC2209_motor::reverseData(uint32_t data){
 bool TMC2209_motor::openSerial(const std::string& path){
     if ((serialport = serialOpen (path.c_str(), baudrate)) < 0)
     {
-        fprintf (stderr, "Unable to open serial device: %d\n", (errno)) ;
+        fprintf (stderr, "Unable to open serial device: %d, %s\n", (errno),path.c_str()) ;
         return false;
     }
     return true;
@@ -170,7 +183,16 @@ void TMC2209_motor::closeSerial(){
 
 // ----------------------------------
 
-// Control functions
+// Control
+bool TMC2209_motor::ping(){
+#ifdef DUMMY
+    return true;
+#else
+    updateConfigFromChip();
+    return curpinsconf.version != 0xffff && curpinsconf.version != 0x00;
+#endif
+}
+
 void TMC2209_motor::setStallguard(uint8_t val){
     writeData(0x40,val&0x7f);
 }
@@ -228,6 +250,7 @@ int TMC2209_motor::speedToUs(float speed){
 bool TMC2209_motor::home(int64_t maxSteps){
     if(diag_pin<0)
         return false;
+    movingFlag = true;
     setCoolstepTh(homeCoolstepTh);
     setStallguard(homeSG);
 
@@ -240,9 +263,11 @@ bool TMC2209_motor::home(int64_t maxSteps){
         maxSteps--;
         if(digitalRead(diag_pin)){
             pos = 0;
+            movingFlag = false;
             return true;
         }
     }
+    movingFlag = false;
     return false;
 }
 
@@ -253,6 +278,7 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
     }
     bool lastEnable = enabled;
     setEnable(true);
+    movingFlag = true;
 
     if(speed < 0){
         steps = -steps;
@@ -307,6 +333,7 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
 
 
     setEnable(lastEnable);
+    movingFlag = false;
     return totalsteps-steps;
 }
 

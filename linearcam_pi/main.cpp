@@ -4,6 +4,8 @@
 #include "tmc2209_motor.h"
 #include "constants_pi.h"
 
+#include "cameracontrol.h"
+
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
     bool &nomove             = flag("s,static capture", "Do not move stepper");
@@ -38,8 +40,10 @@ int main(int argc, char* argv[]) {
         args.print();      // prints all variables
 
     if(args.motorargs.is_valid){
-        std::cout << "Motor steps:" << args.motorargs.steps << std::endl;
+
+        /*
         TMC2209_motor motor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,args.motorargs.serial);
+        motor.init();
         motor.verbose = args.verbose;
         motor.invdir = true;
         if(args.motorargs.home){
@@ -53,6 +57,19 @@ int main(int argc, char* argv[]) {
             motor.setEnable(true);
             motor.move(args.motorargs.steps,args.motorargs.speed,args.motorargs.accel);
             motor.setEnable(false);
+        }
+*/
+
+        Motors motors;
+        motors.slideMotor_p->verbose = args.verbose;
+        std::cout << "Motor steps:" << args.motorargs.steps << std::endl;
+        if(args.motorargs.home){
+            motors.homeSlide();
+        }
+        if(args.motorargs.steps){
+            motors.slideMotor_p->setEnable(true);
+            motors.slideMotor_p->move(args.motorargs.steps,args.motorargs.speed,args.motorargs.accel);
+            motors.slideMotor_p->setEnable(false);
         }
 
     }

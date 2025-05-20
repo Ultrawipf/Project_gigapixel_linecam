@@ -31,6 +31,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(LinearScanCam
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        cameracontrolqt.h cameracontrolqt.cpp
+        resources.qrc
+        libcamvidqt.h libcamvidqt.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET LinearScanCam APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -55,7 +58,7 @@ target_include_directories(LinearScanCam PRIVATE "${EXTRA_SOURCES_INC}")
 target_link_libraries(LinearScanCam PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 #add_dependencies(LinearScanCam "../linearcam_pi")
 target_link_libraries(LinearScanCam PRIVATE linearcam_pi_lib)
-#target_link_libraries(LinearScanCam PRIVATE linearcam_pi)
+
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

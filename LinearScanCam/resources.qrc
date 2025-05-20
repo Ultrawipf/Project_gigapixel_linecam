@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/images">
+        <file>res/nyanhalflong.png</file>
+        <file>res/scancamwip.png</file>
+    </qresource>
+</RCC>
