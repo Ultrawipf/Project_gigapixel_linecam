@@ -22,6 +22,7 @@ public:
 
 public slots:
     void setReady(bool ready);
+    void progressCb(int progress);
 
 private slots:
     void on_radioButton_mode_debug_clicked();
@@ -42,6 +43,7 @@ private:
     //QThread *camerathread;
     CameraControllerQt *ctrl;
 
+    QTimer progressbarHideTimer;
 
 };
 #endif // MAINWINDOW_H

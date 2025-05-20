@@ -1,12 +1,34 @@
 #include "ccd_itf_common.h"
-#include "pio_ccd.pio.h"
+#include "ccd_constants.h" // Define in subproject
+
+#ifdef PIOLIB
+#include "piolib.h"
+#include <wiringPi.h>
+#else
+// Else pico
+
 // #include "ccd_commands.h"
 #include "hardware/pio.h"
-#include "constants.h" // Define in subproject
+#endif
+#include "pio_ccd.pio.h"
+
+#define  MAX( a, b ) ( ( a > b) ? a : b ) 
+#define  MIN( a, b ) ( ( a < b) ? a : b ) 
 
 #define TRANSFERSIZE 122400 // One line 122400^
 #define DATA_BIT_DELAY_US 10
 // #define CTRL_LSBFIRST
+
+#ifdef PIOLIB
+// Pi5 has different gpio calls
+void gpio_put(uint32_t pin, bool state){
+    digitalWrite(pin, state);
+}
+
+bool gpio_get(uint32_t pin){
+    return digitalRead(pin);
+}
+#endif
 
 // Constants
 // Startup commands sampled from scanner before first calibration sampling
@@ -68,7 +90,7 @@ bool setup_data(SM_def *smdef,uint gpiobase){
         smdef->sm = pio_claim_unused_sm(smdef->pio, true);
     }
     #ifdef PIOLIB
-    pio_sm_config_xfer(pio, smdef->sm, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 4);
+    pio_sm_config_xfer(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 4);
     #endif
     if(smdef->offset == SMDEF_INVALID_VAL){
         smdef->offset = pio_add_program(smdef->pio, &ccddata_program);

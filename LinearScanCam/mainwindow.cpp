@@ -15,34 +15,22 @@ MainWindow::MainWindow(QWidget *parent)
     , ctrl(new CameraControllerQt(this))
 {
     ui->setupUi(this);
-    ui->progressBar_scan->setVisible(true);
+    ui->progressBar_scan->setVisible(false);
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
-
-
     ui->groupBox_mode->setEnabled(false);
 
-    //QThread *camerathread = new QThread;
-    //camerathread->start();
-    //slideMotorQt.moveToThread(camerathread);
+    // Setup progressbar
+    progressbarHideTimer.setSingleShot(true);
+    progressbarHideTimer.callOnTimeout([this]{this->ui->progressBar_scan->setVisible(false);});
+    progressbarHideTimer.setInterval(1000);
+    connect(ctrl, &CameraControllerQt::progress,this,&MainWindow::progressCb);
 
-    //std::cout << "Mainthread: " << QThread::currentThread() << std::endl;
-/*
-    connect(&slideMotorQt, &MotorControlQt::progress, [](int progress){
-        std::cout << "current progress:" << progress << std::endl;
-    });
-*/
     // Disable debug controls when motor running
     connect(&ctrl->slideMotorQt, &MotorControlQt::idle,ui->groupBox_motorcontrol_debug,&QGroupBox::setEnabled);
-    /*
-    connect(&slideMotorQt, &MotorControlQt::idle,ui->groupBox_motorcontrol_debug,&QGroupBox::setEnabled);
 
-    connect(&slideMotorQt, &MotorControlQt::busy,ui->progressBar_scan,&QProgressBar::setVisible);
-    connect(&slideMotorQt, &MotorControlQt::progress,ui->progressBar_scan,&QProgressBar::setValue);
-*/
-    connect(ctrl, &CameraControllerQt::progress,ui->progressBar_scan,&QProgressBar::setValue);
 
-    //ctrl->init();
+    // Wait for init
     QFuture<bool> future = QtConcurrent::run(&CameraControllerQt::init,ctrl);
 }
 
@@ -52,6 +40,17 @@ MainWindow::~MainWindow()
     delete ui;
     delete ctrl;
     //delete camerathread;
+}
+
+void MainWindow::progressCb(int progress){
+
+    if(progress != 1000){
+        progressbarHideTimer.stop();
+        ui->progressBar_scan->setVisible(true);
+    }else{
+        progressbarHideTimer.start();
+    }
+    ui->progressBar_scan->setValue(progress);
 }
 
 void MainWindow::setReady(bool ready){
@@ -71,6 +70,7 @@ void MainWindow::on_radioButton_mode_debug_clicked()
 void MainWindow::on_radioButton_mode_preview_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_preview);
+    ui->progressBar_scan->setVisible(false);
 }
 
 

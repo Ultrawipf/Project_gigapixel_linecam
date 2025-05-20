@@ -16,9 +16,24 @@ LibCamVidQt::~LibCamVidQt(){
 }
 
 void LibCamVidQt::errorHandler(QProcess::ProcessError error){
-    qDebug() << "Camera error" << error;
+    if(running){
+        qDebug() << "Camera error" << error;
+        running = false;
+    }
 }
 
+/**
+ * @brief LibCamVidQt::getCurPixmap
+ * @return Unscaled last pixmap read from camera
+ */
+QPixmap LibCamVidQt::getCurPixmap(){
+    return this->curPixmap;
+}
+
+/**
+ * @brief LibCamVidQt::processFrame
+ * Process an mjpeg stream and display in this label
+ */
 void LibCamVidQt::processFrame(){
     QByteArray buf = libcameraProc.readAllStandardOutput();
     streamBuf.append(buf);
@@ -28,9 +43,8 @@ void LibCamVidQt::processFrame(){
         if(ind_start_bytes < ind_end_bytes){
             QByteArray image_data = streamBuf.mid(ind_start_bytes, ind_end_bytes + 2);
             streamBuf = streamBuf.mid(ind_end_bytes+2);
-            QPixmap pmap;
-            if(pmap.loadFromData(image_data, "JPG")) {
-                this->setPixmap(pmap.scaled(this->width(),this->height(), Qt::KeepAspectRatio));
+            if(curPixmap.loadFromData(image_data, "JPG")) {
+                this->setPixmap(curPixmap.scaled(this->width(),this->height(), Qt::KeepAspectRatio));
             }else{
                 this->setText("Error loading pixmap");
             }
@@ -64,6 +78,7 @@ void LibCamVidQt::start(){
     qDebug() << "Starting camera";
     libcameraProc.setProcessChannelMode(QProcess::MergedChannels);
     libcameraProc.start(CAMERACMD,CAMERAARGS);
+    running = true;
 }
 
 void LibCamVidQt::stop(){
@@ -71,6 +86,7 @@ void LibCamVidQt::stop(){
     libcameraProc.terminate();
     streamBuf.clear();
     this->setText(IDLETEXT);
+    running = false;
 }
 
 #endif

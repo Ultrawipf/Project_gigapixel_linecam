@@ -1,5 +1,10 @@
+#ifdef PIOLIB
+#include "piolib.h"
+#else
 #include "hardware/pio.h"
-#include "constants.h"
+#endif
+
+#include "ccd_constants.h"
 #include "ccd_commands.h"
 
 typedef struct smdef_s{

@@ -20,20 +20,22 @@ public:
 
     void hideEvent(QHideEvent *event) override;
     void showEvent(QShowEvent  *event) override;
+    QPixmap getCurPixmap();
 
 public slots:
     void processFrame();
     void errorHandler(QProcess::ProcessError error);
+    //bool saveFrame();
 
 protected:
     QProcess libcameraProc;
-    //const QString CAMERACMD = "echo";
-    //const QStringList CAMERAARGS = {"stuff"};
-    //const QStringList CAMERAARGS = {"-t 0 -n --inline --framerate 30 --width 1920 --height 1080 --libav-format mjpeg -v 0 -o -"};
-    const QStringList CAMERAARGS = {"-t","0" ,"-n","-v","0", "--inline" ,"--framerate","30","--width","1920","--height","1080","--codec","mjpeg","-o","-"};
+    // Args for IMX219 camera
+    const QStringList CAMERAARGS = {"-t","0" ,"-n","-v","0", "--inline" ,"--framerate","30","--width","1640","--height","1232","--codec","mjpeg","-o","-"};
     const QString CAMERACMD = "/usr/bin/libcamera-vid";
     QByteArray streamBuf;
     const QString IDLETEXT = "Waiting for camera...";
+    bool running = false;
+    QPixmap curPixmap;
 };
 
 #endif // LIBCAMVIDQT_H

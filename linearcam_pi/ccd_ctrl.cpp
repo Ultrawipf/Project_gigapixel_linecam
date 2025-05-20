@@ -1,5 +1,6 @@
 #include "ccd_ctrl.h"
-#if FALSE
+//#if FALSE
+#if 0
 //#ifndef DUMMY
 /*
 #include <stdio.h>

@@ -35,6 +35,8 @@ struct MyArgs : public argparse::Args {
 
 int main(int argc, char* argv[]) {
     auto args = argparse::parse<MyArgs>(argc, argv);
+    PinCtrl pinctrl;
+    pinctrl.setEnablePin(true);
 
     if (args.verbose)
         args.print();      // prints all variables
@@ -75,6 +77,6 @@ int main(int argc, char* argv[]) {
     }
 
 
-
+    pinctrl.setEnablePin(false);
     return 0;
 }

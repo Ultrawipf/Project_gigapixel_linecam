@@ -1212,14 +1212,14 @@ QSizeGrip
        <enum>QFrame::Shadow::Raised</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="page_boot">
        <layout class="QGridLayout" name="gridLayout_4">
         <item row="0" column="0">
          <widget class="QLabel" name="label_boot1">
           <property name="text">
-           <string>Starting up...</string>
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Starting up...&lt;/p&gt;&lt;p&gt;Waiting for motor to home&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
          </widget>
         </item>
@@ -1233,6 +1233,9 @@ QSizeGrip
           </property>
           <property name="scaledContents">
            <bool>false</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -1276,6 +1279,9 @@ QSizeGrip
          <widget class="LibCamVidQt" name="label_preview">
           <property name="text">
            <string>Waiting for camera data...</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>

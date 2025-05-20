@@ -22,7 +22,7 @@ CameraControllerQt::~CameraControllerQt()
 bool CameraControllerQt::init(){
     // Home motor
     if(!slideMotorQt.motor->ping()){
-        std::cout << "Can't ping motor" << std::endl;
+        qDebug() << "Can't ping motor";
         emit ready(false);
         return false;
     }
