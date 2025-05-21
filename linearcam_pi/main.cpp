@@ -5,6 +5,7 @@
 #include "constants_pi.h"
 
 #include "cameracontrol.h"
+#include "ccd_ctrl.h"
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -26,7 +27,7 @@ struct MyArgs : public argparse::Args {
 
     bool &verbose          = flag("v,verbose", "A flag to toggle verbose");
 
-    ImgArgs &imgargs    = subcommand("capture");
+    ImgArgs &imgargs    = subcommand("img");
     StepperArgs &motorargs    = subcommand("mot");
 };
 
@@ -42,26 +43,6 @@ int main(int argc, char* argv[]) {
         args.print();      // prints all variables
 
     if(args.motorargs.is_valid){
-
-        /*
-        TMC2209_motor motor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,args.motorargs.serial);
-        motor.init();
-        motor.verbose = args.verbose;
-        motor.invdir = true;
-        if(args.motorargs.home){
-            motor.setEnable(true);
-            motor.setMicrostep(TMC2209_motor::microstep::ms8);
-            motor.move(1000,5000,10);
-            motor.home(-50000);
-            motor.setEnable(false);
-        }
-        if(args.motorargs.steps){
-            motor.setEnable(true);
-            motor.move(args.motorargs.steps,args.motorargs.speed,args.motorargs.accel);
-            motor.setEnable(false);
-        }
-*/
-
         Motors motors;
         motors.slideMotor_p->verbose = args.verbose;
         std::cout << "Motor steps:" << args.motorargs.steps << std::endl;
@@ -73,9 +54,21 @@ int main(int argc, char* argv[]) {
             motors.slideMotor_p->move(args.motorargs.steps,args.motorargs.speed,args.motorargs.accel);
             motors.slideMotor_p->setEnable(false);
         }
-
     }
+    if(args.imgargs.is_valid){
+        CCD_Ctrl ccd;
+        ccd.setClock(true);
+        bool inited = ccd.initCCD();
 
+        std::cout << "Init?: "<< inited << std::endl;
+
+        std::cout << "State: "<< ccd.readData(0x61) << std::endl;
+        uint32_t period = ccd.setResolution(CCD_Resolution::Div8);
+        ccd.setRgbGainOfs(0x7D,0x7D,0x7D,0x3D,0x32,0x38);
+        ccd.captureFrame(args.imgargs.lines, args.imgargs.output,period);
+        //getchar();
+        ccd.setClock(false);
+    }
 
     pinctrl.setEnablePin(false);
     return 0;

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(linearcam_pi LANGUAGES CXX)
+project(linearcam_pi LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,18 +33,13 @@ if(${DUMMY})
     message("Dummy build. no CCD")
 else()
     include(../epson_ccd_pio/CMakeCCDFiles_piolib.txt)
+    #include(/home/pi/git/utils/piolib/CMakeLists.txt)
+
 endif()
 
 
-add_executable(linearcam_pi main.cpp
-    argparse.hpp
-    tmc2209_motor.h tmc2209_motor.cpp
-    constants_pi.h
-    cameracontrol.h cameracontrol.cpp
-    ccd_ctrl.cpp ccd_ctrl.h pio_ccd.h
-    ccd_constants.h
-    ${CCD_SOURCES}  ${CCD_HEADERS_PUBLIC}
-)
+
+add_executable(linearcam_pi main.cpp argparse.hpp)
 add_library(linearcam_pi_lib
     tmc2209_motor.h tmc2209_motor.cpp
     constants_pi.h
@@ -58,8 +53,7 @@ add_library(linearcam_pi_lib
 
 #add_dependencies(linearcam_pi mock_wiringpi)
 #target_include_directories(linearcam_pi PUBLIC wiringpi_dummy)
-include(CMakePrintHelpers)
-cmake_print_variables(DUMMY)
+
 if(${DUMMY})
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/wiringpi_dummy)
     add_compile_definitions(DUMMY)
@@ -74,23 +68,35 @@ else()
 
         #include(../epson_ccd_pio/CMakeCCDFiles.txt)
         add_compile_definitions(PIOLIB)
+        #add_dependencies(linearcam_pi pio)
+        #add_dependencies(linearcam_pi_lib pio)
       #set(PIOPATH /home/pi/git/utils/piolib/)
       #set(HEADERS_PUBLIC ccd_constants.h)
-        link_directories(${PIOPATH})
+      message("CCD SOURCES: ${CCD_SOURCES}")
+        #link_directories(${PIOPATH})
+        # INFO MUST MAKE AND INSTALL SHARED libpio.so first
+        target_link_libraries(linearcam_pi PRIVATE "/usr/local/lib/libpio.so.0")
+        target_link_libraries(linearcam_pi_lib PRIVATE "/usr/local/lib/libpio.so.0")
+        #add_library (pio OBJECT ${PIOPATH}/piolib.c ${PIOPATH}/pio_rp1.c)
+        #   target_include_directories(pio PUBLIC ${PIOINCLUDEPATH})
 
-        add_library (pio OBJECT ${PIOPATH}/piolib.c ${PIOPATH}/pio_rp1.c)
-        #target_include_directories(pio_ccd PRIVATE)
-        target_link_libraries(linearcam_pi PRIVATE pio)
+        target_include_directories(linearcam_pi PUBLIC ${PIOINCLUDEPATH})
+        target_include_directories(linearcam_pi_lib PUBLIC ${PIOINCLUDEPATH})
 
-      #include_directories(/home/pi/git/utils/piolib/include/)
+        #target_link_libraries(linearcam_pi PRIVATE pio)
+        #target_link_libraries(linearcam_pi_lib PRIVATE pio)
 
+
+
+
+        #include_directories(/home/pi/git/utils/piolib/include/)
 
     endif()
 
-    target_link_libraries(linearcam_pi PRIVATE wiringPi)
+    #target_link_libraries(linearcam_pi PRIVATE wiringPi)
     target_link_libraries(linearcam_pi_lib PRIVATE wiringPi)
 endif()
-
+target_link_libraries(linearcam_pi PRIVATE linearcam_pi_lib)
 
 include(GNUInstallDirs)
 install(TARGETS linearcam_pi

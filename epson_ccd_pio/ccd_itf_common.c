@@ -80,7 +80,7 @@ bool setup_clock(SM_def *smdef,float freq, uint gpio){
     pio_sm_clear_fifos(smdef->pio, smdef->offset);
 
     ccdclock_program_init(smdef->pio, smdef->sm, smdef->offset, gpio, freq); // Generate 6MHz clock 6000000.0
-    gpio_set_drive_strength(gpio,GPIO_DRIVE_STRENGTH_8MA); // Tune clock
+    //gpio_set_drive_strength(gpio,GPIO_DRIVE_STRENGTH_8MA); // Tune clock
     return true;
 }
 
@@ -90,7 +90,7 @@ bool setup_data(SM_def *smdef,uint gpiobase){
         smdef->sm = pio_claim_unused_sm(smdef->pio, true);
     }
     #ifdef PIOLIB
-    pio_sm_config_xfer(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 4);
+    pio_sm_config_xfer(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 2);
     #endif
     if(smdef->offset == SMDEF_INVALID_VAL){
         smdef->offset = pio_add_program(smdef->pio, &ccddata_program);
@@ -107,7 +107,7 @@ bool setup_data(SM_def *smdef,uint gpiobase){
 }
 
 uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
-    // Maybe clear buffer, reset and wait for TG using pio_sm_exec command?
+    // Maybe clear buffer, reset and wait for TG using exec command?
     if(smdef->sm == SMDEF_INVALID_VAL){
         return 0;
     }
@@ -134,10 +134,10 @@ uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
     return ofs;
 }
 
-void begin_ctrl_data_transfer(const SM_def *smdef,const uint basepin){
+void begin_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin){
     pio_sm_set_enabled(smdef->pio,smdef->sm,false); // Turn off SM
     pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, true); // Set pins to output
-    pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, 0)); // Clock high
+    pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0)); // Clock high
     sleep_us(100);
     gpio_put(CSPIN, false); // Assert CS
     sleep_us(100);
@@ -156,17 +156,17 @@ uint16_t read_ctrl_data_sm(const SM_def *smdef,uint8_t cmd){
     begin_ctrl_data_transfer(smdef,basepin);
     for(uint32_t count = 0; count < 8; count++){
         uint8_t curbit = (cmd >> (7-count) ) & 0x01; // Shift MSB
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, curbit)); // Clock low
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | curbit)); // Clock low
         sleep_us(DATA_BIT_DELAY_US);
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, 2 | curbit)); // Clock high
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 2 | curbit)); // Clock high
         sleep_us(DATA_BIT_DELAY_US);
     }
     pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 1, false); // Set data to input
     for(uint32_t count = 0; count < 16; count++){
         // uint8_t curbit = (cmd >> (7-count) ) & 0x01; // Shift MSB
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, 0)); // Clock low
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0)); // Clock low
         sleep_us(DATA_BIT_DELAY_US);
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, 2)); // Clock high
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 2)); // Clock high
         bool dstate = gpio_get(basepin+6);
         if(dstate){
             buf |= 1 << (15-count);
@@ -195,9 +195,9 @@ void send_ctrl_data_sm_32(const SM_def *smdef,uint32_t buf){
         #else
         uint8_t curbit = (buf >> (23-count) ) & 0x01; // Shift MSB
         #endif
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, curbit)); // Clock low
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | curbit)); // Clock low
         sleep_us(DATA_BIT_DELAY_US);
-        pio_sm_exec(smdef->pio, smdef->sm, pio_encode_set(pio_pins, 2 | curbit)); // Clock high
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 2 | curbit)); // Clock high
         sleep_us(DATA_BIT_DELAY_US);
     }
     pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, false); // Set pindirs back

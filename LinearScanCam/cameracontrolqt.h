@@ -5,6 +5,7 @@
 #include "cameracontrol.h"
 #include <QFuture>
 #include <QtConcurrent/QtConcurrent>
+#include "ccd_ctrl.h"
 
 
 class FuturePromiseTimer : public QObject{
@@ -52,7 +53,7 @@ class MotorControlQt : public QObject{
 public:
     //MotorControlQt();
     MotorControlQt(TMC2209_motor* motor);
-    ~MotorControlQt();
+    virtual ~MotorControlQt();
 
     QFuture<void> home();
     //void homeRunner(QPromise<void> &promise);
@@ -96,7 +97,18 @@ protected:
 class LinCCDQt : public QObject{
     Q_OBJECT
 public:
-    LinCCDQt(){};
+    LinCCDQt();
+    virtual ~LinCCDQt();
+    QFuture<bool> init();
+
+signals:
+    void ready(bool);
+
+public slots:
+    void setClock(bool enable);
+
+protected:
+    CCD_Ctrl ccdctrl;
 };
 
 // Main control class
@@ -104,11 +116,12 @@ class CameraControllerQt : public QObject{
     Q_OBJECT
 public:
     CameraControllerQt(QObject *parent);
-    ~CameraControllerQt();
+    virtual ~CameraControllerQt();
 
     bool init();
 
     MotorControlQt slideMotorQt;
+    LinCCDQt* ccd;
 
     // libcamera cam0
 signals:

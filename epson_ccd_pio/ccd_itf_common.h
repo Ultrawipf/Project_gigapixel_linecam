@@ -7,6 +7,8 @@
 #include "ccd_constants.h"
 #include "ccd_commands.h"
 
+#define PIOSETINST 0xe000
+
 typedef struct smdef_s{
     PIO pio;
     uint sm;
@@ -15,18 +17,18 @@ typedef struct smdef_s{
 #define SMDEF_INVALID_VAL UINT8_MAX
 
 typedef enum {
-    CCD_Res_Full, //4800
-    CCD_Res_div2, //2400
-    CCD_Res_div4, //1200
-    CCD_Res_div8, //600
-    CCD_Res_div16 //300/preview
+    CCD_Res_Full=0, //4800
+    CCD_Res_div2=1, //2400
+    CCD_Res_div4=2, //1200
+    CCD_Res_div8=3, //600
+    CCD_Res_div16=4 //300/preview
 }CCD_Resolution_t;
 
 int set_clock(const SM_def *smdef,int enable);
 bool setup_clock(SM_def *smdef,float freq, uint gpio);
 bool setup_data(SM_def *smdef,uint gpiobase);
 uint32_t readData(const SM_def *smdef,uint32_t* buf,int samples);
-void begin_ctrl_data_transfer(const SM_def *smdef,const uint basepin);
+void begin_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin);
 uint16_t read_ctrl_data_sm(const SM_def *sm_data,uint8_t cmd);
 
 void send_ctrl_data_sm_32(const SM_def *smdef,uint32_t buf);

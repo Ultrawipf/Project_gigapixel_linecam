@@ -17,7 +17,7 @@ Motors::Motors()
 Motors::~Motors(){
     slideMotor.setEnable(false);
     slideMotor_p = nullptr;
-    std::cout << "Deleting Motors "<< std::endl;
+    //std::cout << "Deleting Motors "<< std::endl;
 }
 
 // Static functions

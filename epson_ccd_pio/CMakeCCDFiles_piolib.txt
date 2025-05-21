@@ -1,9 +1,10 @@
 # Set SOURCES variable
 cmake_minimum_required(VERSION 3.16)
 
-project(ccd_control LANGUAGES C)
+#project(ccd_control LANGUAGES C CXX)
 
 message("Epson ccd pio included")
+include(GNUInstallDirs)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.h
@@ -13,18 +14,28 @@ add_custom_command(
 )
 
 if(${PIOLIB})
-  message("Piolib on")
+if (CMAKE_COMPILER_IS_GNUCC)
+   add_definitions (-ffunction-sections)
+endif ()
+  message("Piolib on (CCDFILE)")
   add_compile_definitions(PIOLIB)
-  set(PIOPATH /home/pi/git/utils/piolib/)
-  link_directories(${PIOPATH})
-  include_directories(/home/pi/git/utils/piolib/include/)
+  set(PIOPATH /home/pi/git/utils/piolib)
+  set(PIOINCLUDEPATH /home/pi/git/utils/piolib/include)
+#  link_directories(${PIOPATH})
+#  include_directories(PIOINCLUDEPATH)
+
+#  add_library (pio OBJECT ${PIOPATH}/piolib.c ${PIOPATH}/pio_rp1.c ${PIOPATH}/library_piochips.c)
+#  target_include_directories(pio PUBLIC ${PIOINCLUDEPATH})
 endif()
 
 set(CCD_SOURCES
-  ${CMAKE_CURRENT_LIST_DIR}/ccd_commands.c ${CMAKE_CURRENT_LIST_DIR}/ccd_itf_common.c
+  ${CMAKE_CURRENT_LIST_DIR}/ccd_commands.c
+  ${CMAKE_CURRENT_LIST_DIR}/ccd_itf_common.c
 )
 
 # Set HEADERS_PUBLIC variable (public headers, included in the library)
 set(CCD_HEADERS_PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/ccd_commands.h ${CMAKE_CURRENT_LIST_DIR}/ccd_itf_common.h ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.h
+  ${CMAKE_CURRENT_LIST_DIR}/ccd_commands.h
+  ${CMAKE_CURRENT_LIST_DIR}/ccd_itf_common.h
+  ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.h
 )

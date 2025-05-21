@@ -4,23 +4,30 @@
 #include <QFutureWatcher>
 #include "cameracontrol.h"
 
+#ifndef DUMMY
+#include "ccd_ctrl.h"
+#endif
 Motors motors; // Contains the motor drivers
 PinCtrl pinctrl;
 
 CameraControllerQt::CameraControllerQt(QObject *parent) :
     QObject(parent),
     slideMotorQt(MotorControlQt(motors.slideMotor_p))
+#ifndef DUMMY
+   ,ccd(new LinCCDQt)
+#endif
 {
     connect(&slideMotorQt, &MotorControlQt::progress,this,&CameraControllerQt::progress);
 }
 
 CameraControllerQt::~CameraControllerQt()
 {
-
+    delete ccd;
 }
 
 bool CameraControllerQt::init(){
     // Home motor
+    bool flag = true;
     if(!slideMotorQt.motor->ping()){
         qDebug() << "Can't ping motor";
         emit ready(false);
@@ -28,13 +35,52 @@ bool CameraControllerQt::init(){
     }
     // Enable reset pin
     pinctrl.setEnablePin(true);
-    QFuture<void> future = slideMotorQt.home();
-    future.waitForFinished();
-    emit ready(true);
-    return true;
+    QFuture<void> motorfuture = slideMotorQt.home();
+
+    if(ccd){ // Init CCD while motor homes
+        ccd->setClock(true);
+        QFuture<bool> ccdfuture = ccd->init();
+        ccdfuture.waitForFinished();
+        if(!ccdfuture.result()){
+            qDebug() << "CCD init failed";
+            flag = false;
+            ccd->setClock(false); // Disable clock if failed
+        }
+    }
+    motorfuture.waitForFinished();
+
+    emit ready(flag);
+    return flag;
+}
+
+// ----------------------------------------
+LinCCDQt::LinCCDQt()
+{
+    qDebug() << "Starting CCD CTRL";
+}
+LinCCDQt::~LinCCDQt(){
+    ccdctrl.setClock(false);
+}
+
+void LinCCDQt::setClock(bool enable){
+    qDebug() << "Setting CCD clock: "<<enable;
+    ccdctrl.setClock(enable);
+}
+
+QFuture<bool> LinCCDQt::init(){
+    QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>();
+    connect(watcher,&QFutureWatcher<bool>::finished,watcher,&QFutureWatcher<bool>::deleteLater);
+    // Connect start and end functions
+
+    // Start task
+    QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,&ccdctrl);
+    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
+    watcher->setFuture(future);
+    return future;
 }
 
 
+// ----------------------------------------
 
 MotorControlQt::MotorControlQt(TMC2209_motor* motor)
     : motor(motor)
@@ -106,8 +152,9 @@ void MotorControlQt::motorBegin(){
 
 QFuture<void> MotorControlQt::home(){
     if(!motor) return QtFuture::makeReadyFuture();
+
     targetpos = 0;
-    startpos = -30000;
+    startpos = motor->getPos();
 
     // Create future watcher
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();

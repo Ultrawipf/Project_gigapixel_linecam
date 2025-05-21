@@ -253,22 +253,29 @@ bool TMC2209_motor::home(int64_t maxSteps){
     movingFlag = true;
     setCoolstepTh(homeCoolstepTh);
     setStallguard(homeSG);
-
+    int8_t dir = maxSteps < 0 ? -1 : 1;
     digitalWrite (dir_pin, invdir != maxSteps < 0);
     maxSteps = abs(maxSteps);
     int delayus = speedToUs(homeSpeed);
     while(maxSteps > 0)
     {
         doStep(delayus);
+        pos += dir;
         maxSteps--;
         if(digitalRead(diag_pin)){
             pos = 0;
             movingFlag = false;
+            homed = true;
             return true;
         }
     }
     movingFlag = false;
+    homed = false;
     return false;
+}
+
+bool TMC2209_motor::wasHomed(){
+    return homed;
 }
 
 // Blocking

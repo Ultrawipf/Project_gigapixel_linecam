@@ -18,7 +18,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar_scan->setVisible(false);
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
-    ui->groupBox_mode->setEnabled(false);
+    ui->frame_mode->setEnabled(false);
 
     // Setup progressbar
     progressbarHideTimer.setSingleShot(true);
@@ -54,7 +54,7 @@ void MainWindow::progressCb(int progress){
 }
 
 void MainWindow::setReady(bool ready){
-    ui->groupBox_mode->setEnabled(ready);
+    ui->frame_mode->setEnabled(ready);
     if(ready){
         ui->label_boot1->setText("Camera ready");
         ui->radioButton_mode_debug->click();

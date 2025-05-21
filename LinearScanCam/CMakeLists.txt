@@ -57,7 +57,7 @@ target_include_directories(LinearScanCam PRIVATE "${EXTRA_SOURCES_INC}")
 
 target_link_libraries(LinearScanCam PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 #add_dependencies(LinearScanCam "../linearcam_pi")
-target_link_libraries(LinearScanCam PRIVATE linearcam_pi_lib)
+target_link_libraries(LinearScanCam PUBLIC linearcam_pi_lib)
 
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

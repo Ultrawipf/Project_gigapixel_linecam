@@ -156,6 +156,7 @@ public:
     bool updateConfigFromChip();
 
     bool isMoving();
+    bool wasHomed();
 
 protected:
     int speedToUs(float speed);
@@ -183,6 +184,7 @@ private:
 
     bool enabled = false;
     bool movingFlag = false;
+    bool homed = false;
 
     static constexpr uint8_t syncbyte = 0x55; // Different than the reply of 0x05
 
