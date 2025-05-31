@@ -4,8 +4,8 @@
 #include "constants_pi.h"
 
 #ifdef TMC2209
-TMC2209_motor::TMC2209_motor(int step,int dir, int en,int diag,const std::string& serial,uint8_t addr)
-    : step_pin(step),dir_pin(dir),en_pin(en),diag_pin(diag),serialportname(serial),addr(addr)
+TMC2209_motor::TMC2209_motor(int step,int dir,float mmToSteps, int en,int diag,const std::string& serial,uint8_t addr)
+    : step_pin(step),dir_pin(dir),mmToSteps(mmToSteps),en_pin(en),diag_pin(diag),serialportname(serial),addr(addr)
 {
     std::cout << "Motor serial: " << serial << std::endl;
     //updateConfigFromChip();
@@ -40,7 +40,6 @@ bool TMC2209_motor::updateConfigFromChip(){
     writeData(0x01,0x07);
     curgconf.asint = readData(0x00);
     curchopconf.asint = readData(0x6C);
-    curStepMult = 256 >> curchopconf.mres;
     curcoolconf.asint = readData(0x42);
     curpinsconf.asint = readData(0x06);
     if(verbose){
@@ -51,6 +50,7 @@ bool TMC2209_motor::updateConfigFromChip(){
     }
 
     initialized = true;
+    stepMult = getStepMult();
     return true;
 }
 
@@ -59,6 +59,11 @@ int64_t TMC2209_motor::getPos(){
 }
 void TMC2209_motor::setPos(int64_t pos){
     this->pos = pos;
+    this->targetPosMM = stepsToMM(pos);
+}
+
+float TMC2209_motor::stepsToMM(int64_t steps){
+    return pos / (mmToSteps*stepMult);
 }
 
 bool TMC2209_motor::isMoving(){
@@ -211,7 +216,7 @@ void TMC2209_motor::setMicrostep(microstep ms){
     }
     writeData(0x6C,curchopconf.asint);
     writeData(0x00,curgconf.asint);
-    curStepMult = 256 >> curchopconf.mres;
+    stepMult = getStepMult(); // Update internal multiplier
 }
 
 void TMC2209_motor::setInterpolation(bool en){
@@ -225,8 +230,34 @@ void TMC2209_motor::moveTo(int64_t position,float speed,float accel){
     move(dist,speed,accel);
 }
 
+float TMC2209_motor::moveMM(float mm,float speed,float accel){
+    int mult = stepMult;
+    float posErr = targetPosMM + mm - getActualPos();
+    int64_t stepsToDo = std::round(mmToSteps * posErr * mult);
+    std::cout << "Moving mm "<<posErr << " steps "<<stepsToDo << std::endl;
+    speed = speed * mult;
+    accel = accel * mult;
+    move(stepsToDo,speed,accel);
+    return stepsToMM(stepsToDo); // Return actual movement in mm
+}
+
+void TMC2209_motor::moveToMM(float mm,float speed,float accel){
+    float dist = mm - this->getActualPos();
+    moveMM(dist,speed,accel);
+}
+
+float TMC2209_motor::getActualPos(){
+    return pos / (mmToSteps*stepMult);
+}
+
 int TMC2209_motor::getStepMult(){
-    return curStepMult;
+    if(curchopconf.mres == static_cast<uint8_t>(microstep::pin)){
+        if(curpinsconf.ms1 == 0 && curpinsconf.ms2 == 0) return 8;
+        else if(curpinsconf.ms1 == 1 && curpinsconf.ms2 == 0) return 32;
+        else if(curpinsconf.ms1 == 1 && curpinsconf.ms2 == 1) return 16;
+        else if(curpinsconf.ms1 == 0 && curpinsconf.ms2 == 1) return 64;
+    }
+    return 256 >> curchopconf.mres;
 }
 
 float TMC2209_motor::uminToStepFreq(float speed,float stepsPerRotation){
@@ -260,10 +291,11 @@ bool TMC2209_motor::home(int64_t maxSteps){
     while(maxSteps > 0)
     {
         doStep(delayus);
-        pos += dir;
+        updatePosFromSteps(dir);
         maxSteps--;
         if(digitalRead(diag_pin)){
             pos = 0;
+            targetPosMM = 0;
             movingFlag = false;
             homed = true;
             return true;
@@ -317,7 +349,7 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
         float newspeed = speed * sin(1.57079632f * stp);
         delayus = speedToUs(newspeed);
         doStep(delayus);
-        pos += dir;
+        updatePosFromSteps(dir);
         steps--;
     }
 
@@ -326,7 +358,7 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
     while(steps > accelsteps)
     {
         doStep(delayus);
-        pos += dir;
+        updatePosFromSteps(dir);
         steps--;
     }
     // Decelerate
@@ -334,7 +366,7 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
     {
         delayus = speedToUs(speed * sin(1.57079632f * ((curaccelstep-- + speedmultramp)/(accelsteps_f+speedmultramp))));
         doStep(delayus);
-        pos += dir;
+        updatePosFromSteps(dir);
         steps--;
     }
 
@@ -348,6 +380,11 @@ void TMC2209_motor::setEnable(bool enable){
     if(en_pin >= 0)
         digitalWrite (en_pin, !enable);
     enabled = enable;
+}
+
+void TMC2209_motor::updatePosFromSteps(int step){
+    pos+=step;
+    targetPosMM = stepsToMM(pos);
 }
 
 #endif

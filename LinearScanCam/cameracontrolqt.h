@@ -7,46 +7,6 @@
 #include <QtConcurrent/QtConcurrent>
 #include "ccd_ctrl.h"
 
-
-class FuturePromiseTimer : public QObject{
-    Q_OBJECT
-public:
-
-    FuturePromiseTimer(const std::function<int64_t(void)>& progressFunc,bool autodelete = true);
-    virtual ~FuturePromiseTimer();
-
-    void setInterval(int interval);
-    void setStartEndValues(int64_t start, int64_t end);
-
-    QPromise<void>** run(const std::function<void(void)>& targetFunc);
-
-signals:
-    void busy(bool busy);
-    void progress(int64_t val);
-
-public slots:
-    void emitProgress();
-    void beginProcess();
-    void endProcess();
-
-
-
-protected:
-    void runner(QPromise<void>& promise,const std::function<void(void)>& targetFunc);
-
-    QTimer progressTimer;
-    QPromise<void>* curpromise;
-
-    const std::function<int64_t(void)>& progressFunc;
-
-    int64_t start;
-    int64_t end;
-
-    bool autodelete;
-};
-
-//QFuture<void> future = QtConcurrent::run(aFunction);
-
 // Helper class to control a motor directly from Qt
 class MotorControlQt : public QObject{
     Q_OBJECT
@@ -57,9 +17,9 @@ public:
 
     QFuture<void> home();
     //void homeRunner(QPromise<void> &promise);
-    QFuture<void> move(int64_t steps,float speed, float accel);
+    QFuture<void> moveMM(float mm,float speed, float accel);
     //void moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel);
-    QFuture<void> moveTo(int64_t pos);
+    QFuture<void> moveToMM(float pos);
     //void run(QPromise<int> &promise);
 
     int64_t homesteps = -40000;
@@ -67,34 +27,32 @@ public:
 
     TMC2209_motor* motor;
 signals:
-    void position(int64_t val);
+    void position(double val);
     void progress(float val);
     void idle(bool idle);
     void busy(bool busy);
 
 public slots:
     void emitProgress();
+    double emitPosition();
 
     void motorBegin();
     void motorEnd();
 
 protected:
-    //const std::function<void(void)>& target;
-    //const std::function<int64_t(void)>& progressTarget;
-
     QTimer progressTimer;
     bool running=false;
 
     QPromise<void>* curpromise = nullptr;
 
-    int64_t startpos;
-    int64_t targetpos;
+    double startpos;
+    double targetpos;
 
     const float MAXPROGRESS = 1000.0f;
 
 };
 
-class LinCCDQt : public QObject{
+class LinCCDQt : public QObject, public CCD_Ctrl{
     Q_OBJECT
 public:
     LinCCDQt();
@@ -103,12 +61,11 @@ public:
 
 signals:
     void ready(bool);
+    void newLine(uint16_t * buf, uint32_t len);
 
 public slots:
     void setClock(bool enable);
 
-protected:
-    CCD_Ctrl ccdctrl;
 };
 
 // Main control class

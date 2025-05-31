@@ -45,7 +45,7 @@ wait 1 pin 9 side 0
     in pins 8 side 1
     
     wait 0 pin 8 side 1
-    ;nop side 1
+    nop side 1
     ;in pins 8 side 0 ; Requires faster PIO DMA for 16b
     ;push noblock side 0
 .wrap
@@ -63,7 +63,7 @@ wait 1 pin 9 side 0
         pio_gpio_init(pio, DATADBGPIN);
         #endif
         // Set the pin direction to input at the PIO
-        pio_sm_set_consecutive_pindirs(pio, sm, dpinbase, 8, false); // Do not override clock pin dirs
+        pio_sm_set_consecutive_pindirs(pio, sm, dpinbase, 8, false); // Do not override clock pin dirs maybe
         sm_config_set_in_pins(&c, dpinbase); // for WAIT, IN
         #ifdef DATADBGPIN
             pio_sm_set_consecutive_pindirs(pio, sm, DATADBGPIN, 1, true);

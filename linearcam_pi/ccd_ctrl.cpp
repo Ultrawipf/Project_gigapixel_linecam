@@ -1,202 +1,6 @@
 #include "ccd_ctrl.h"
 #include <array>
-//#if FALSE
-#if 0
-//#ifndef DUMMY
-/*
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
-#include "piolib.h"
-#include "pio_ccd.h"
-#include "string.h"
-
-
-PIO pio; // Only one pio
-int sm_clock = 255;
-int sm_data = 255;
-
-#define TRANSFERSIZE 122400 // One line 122400
-#define  MAX( a, b ) ( ( a > b) ? a : b )
-#define  MIN( a, b ) ( ( a < b) ? a : b )
-
-int set_clock(int enable){
-    if(sm_clock == 255){
-        return 0;
-    }
-    if(enable){
-        pio_sm_set_enabled(pio, sm_clock, true); // Enable SM
-        return 1;
-    }else{
-        pio_sm_set_enabled(pio, sm_clock, false); // Disable SM
-        pio_sm_set_pins(pio, sm_clock, 0);  // Disable pins
-        return 1;
-    }
-}
-
-int setup_clock(int argc, const char **argv){
-
-    uint offset;
-
-    uint gpio = 4;
-
-    if (argc == 2)
-        gpio = (uint)strtoul(argv[1], NULL, 0);
-
-
-    sm_clock = pio_claim_unused_sm(pio, true);
-
-    offset = pio_add_program(pio, &ccdclock_program);
-    printf("Loaded ccd clock at %d, using sm %d, gpio %d\n", offset, sm_clock, gpio);
-
-    pio_sm_clear_fifos(pio, sm_clock);
-
-    ccdclock_program_init(pio, sm_clock, offset, gpio, 6000000.0); // Generate 6MHz clock
-
-    set_clock(1);
-
-    getchar();
-
-    set_clock(0);
-    return 0;
-}
-
-int setup_data(){
-    uint offset;
-    uint gpiobase = 17; // 9 pins
-
-    sm_data = pio_claim_unused_sm(pio, true);
-    pio_sm_config_xfer(pio, sm_data, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 2);
-    offset = pio_add_program(pio, &ccddata_program);
-    printf("Loaded ccd data at %d, using sm %d, gpio %d\n", offset, sm_data, gpiobase);
-    ccddata_program_init(pio, sm_data, offset, gpiobase, 60000000.0f); // 60000000
-
-    pio_sm_clear_fifos(pio, sm_data);
-    return 0;
-}
-
-
-int readData(uint32_t* buf,int samples){
-
-    if(sm_data == 255){
-        return 0;
-    }
-    // pio_sm_set_enabled(pio, sm_data, true); // Enable SM
-    int ret;
-    int ofs = 0;
-    while(ofs < samples){
-        int curlen = MIN(samples-ofs,TRANSFERSIZE);
-        ret = pio_sm_xfer_data(pio, sm_data, PIO_DIR_FROM_SM, curlen*sizeof(uint32_t), buf+ofs);
-        ofs += curlen;
-    }
-
-    // pio_sm_set_enabled(pio, sm_data, false); // Disable SM
-    if(ret){
-        printf("Transfer failed %d\n",ret);
-        return 0;
-    }
-    return ofs;
-}
-
-int check_if_idle(uint32_t* buf,int samples){
-    for(uint i = 0;i<samples;i++){
-        if( (buf[i] & 0x3F3F) != 0){
-            return 0;
-        }
-    }
-    return 1;
-}
-
-int main(int argc, const char **argv)
-{
-    pio = pio0;
-    // pio_clear_instruction_memory(pio);
-    // pio_sm_unclaim(pio,0);
-    // setup_clock(argc,argv);
-    setup_data();
-
-    uint32_t samples = TRANSFERSIZE;
-    uint32_t buf[1][samples];
-    memset( buf[0], 0, samples*sizeof(uint32_t) );
-    // memset( buf[1], 0, samples*sizeof(uint32_t) );
-    printf("Waiting\n");
-
-    FILE *fptr;
-    fptr = fopen("/tmp/dump.bin", "wb");
-
-    pio_sm_set_enabled(pio, sm_data, true); // Enable SM
-    // while((pio_sm_get_blocking(pio,sm_data) & 0x3F3F) == 0){
-    //     sleep_ms(10);
-    // }
-
-    for(uint i = 0;i<100;i++){
-        printf("Dat %d\n",pio_sm_get_blocking(pio,sm_data));
-    }
-
-
-
-    // Open a file in writing mode
-    uint32_t tgcnt = 0;
-    bool foundTg = false;
-    // for(uint32_t line = 0; line < 500;line++){
-    uint8_t curbuf = 0;
-    do{
-        // curbuf = curbuf++ % 2;
-        printf("Sampling\n");
-        memset( buf[curbuf], 0, samples*sizeof(uint32_t) );
-        int amount = readData(buf[curbuf],samples);
-
-
-        // for(uint i = 0;i<samples;i++){
-        //     printf("%d ",buf[i]);
-        // }
-        printf("Sampled %d\n",amount);
-        foundTg = false;
-
-        for(uint32_t i = 0;i<samples;i++){
-            // uint32_t d = (buf[curbuf][i] & 0xff); // <<8?
-            // d |= ((buf[curbuf][i] >> 2)) & 0xff00; // >>10?
-            // d |= (buf[curbuf][i] & 0x300) << 8;
-            // fwrite(&d, 3, 1, fptr);
-            uint32_t d = (buf[curbuf][i] & 0xff); // 10b
-            d |= ((buf[curbuf][i] >> 2)) & 0xff00; // >>10?
-            d |= ((buf[curbuf][i] >> 4)) & 0xff0000; // >>10?
-            d |= (buf[curbuf][i] & 0x20000000) >> 2; //TG3
-            d |= (buf[curbuf][i] & 0x80000) << 7; //TG2
-            d |= (buf[curbuf][i] & 0x200) << 16; //TG1
-
-
-            fwrite(&d, 4, 1, fptr);
-            // bool gotTg = buf[curbuf][i] & 0x200200;
-            bool gotTg = buf[curbuf][i] & 0x20080200;
-            if(gotTg){
-                if(tgcnt > 100){
-                    printf("TG! %d\n",tgcnt);
-                    tgcnt = 0;
-                    foundTg = true;
-                }
-            }else{
-                tgcnt+=3;
-            }
-        }
-        if(!foundTg && tgcnt > 57257){
-            break;
-        }
-    }while(foundTg);
-
-    pio_sm_set_enabled(pio, sm_data, false); // Disable SM
-
-    // Close the file
-    fclose(fptr);
-
-
-    return 0;
-}
-*/
-
-#endif
-#if PIOLIB
 
 #include "cameracontrol.h"
 #ifndef DUMMY
@@ -206,6 +10,7 @@ int main(int argc, const char **argv)
 #endif
 #include <iostream>
 
+#ifndef DUMMY
 //SM_def sm_data = {.pio = pio0,.offset = SMDEF_INVALID_VAL,.sm = SMDEF_INVALID_VAL};
 //SM_def sm_clock = {.pio = pio0,.offset = SMDEF_INVALID_VAL,.sm = SMDEF_INVALID_VAL};
 // SM_def sm_stepper = {.pio = pio0,.offset = SMDEF_INVALID_VAL,.sm = SMDEF_INVALID_VAL};
@@ -242,19 +47,24 @@ void CCD_Ctrl::setupSm(){
 }
 
 void CCD_Ctrl::setClock(bool enable){
+    std::cout << "CCD clock " << enable << std::endl;
     set_clock(&sm_clock,enable);
 }
 
+void CCD_Ctrl::startCapture(){
+    start_sampling(&sm_data);
 
-/**
- * @brief Decodes a raw buffer in place into pixel data
- *
- * @param buf
- * @param len
- */
-void CCD_Ctrl::decode_data(uint32_t* buf,uint32_t len){
 
 }
+
+void CCD_Ctrl::captureData(uint32_t* buffer,uint32_t length,uint32_t tgperiod){
+    readFrames(&sm_data,buffer,length,tgperiod);
+}
+
+void CCD_Ctrl::endCapture(){
+    stop_sampling(&sm_data);
+}
+
 
 void CCD_Ctrl::sendCtrlData(uint8_t cmd,uint8_t data1,uint8_t data2){
     send_ctrl_data_sm(&sm_data,cmd,data1,data2);
@@ -268,8 +78,18 @@ void CCD_Ctrl::sendCtrlDataArr(const uint32_t* buf,uint32_t len){
     send_ctrl_data_arr(&sm_data,buf,len);
 }
 
-
 void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperiod){
+    FILE *fptr;
+    if(filename == "-"){
+        fptr = stdout;
+    }else{
+        fptr = fopen(filename.c_str(), "ab");
+    }
+    captureFrame(lines,fptr,tgperiod);
+    fclose(fptr);
+}
+
+void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod){
     int samples = tgperiod;
     uint32_t buffer[samples] = {0};
 
@@ -277,12 +97,7 @@ void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperi
     sleep_ms(50); // Dump some data first
     
 
-    FILE *fptr;
-    if(filename == "-"){
-        fptr = stdout;
-    }else{
-        fptr = fopen(filename.c_str(), "wb");
-    }
+
     for(uint32_t l = 0;l<lines;l++){
         readFrames(&sm_data,buffer,samples,tgperiod);
         for(uint32_t i = 0;i<samples;i++){
@@ -292,11 +107,13 @@ void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperi
     // Close the file
     
     stop_sampling(&sm_data);
-    fclose(fptr);
+
 }
 
 uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){
-    return set_resolution(&sm_data,static_cast<CCD_Resolution_t>(res));
+    curRes = res;
+    curLinelength = set_resolution(&sm_data,static_cast<CCD_Resolution_t>(res));
+    return curLinelength;
 }
 
 void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain){
@@ -322,7 +139,45 @@ bool CCD_Ctrl::initCCD(){
 uint32_t CCD_Ctrl::readData(uint8_t adr){
     return read_ctrl_data_sm(&sm_data,adr);
 }
+#else
+CCD_Ctrl::CCD_Ctrl(){};
+CCD_Ctrl::~CCD_Ctrl(){};
+void CCD_Ctrl::setClock(bool enable){};
+void CCD_Ctrl::setupSm(){};
+bool CCD_Ctrl::initCCD(){return true;};
 
+void CCD_Ctrl::startCapture(){};
+void CCD_Ctrl::endCapture(){};
+
+void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperiod){};
+void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod){};
+
+void CCD_Ctrl::captureData(uint32_t* buffer,uint32_t length,uint32_t tgperiod){};
+
+void CCD_Ctrl::sendCtrlData(uint8_t cmd,uint8_t data1,uint8_t data2){};
+void CCD_Ctrl::sendCtrlData(uint32_t data){};
+void CCD_Ctrl::sendCtrlDataArr(const uint32_t* buf,uint32_t len){};
+uint32_t CCD_Ctrl::readData(uint8_t adr){return 0;};
+
+uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){curRes = res; return 0;};
+void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain){};
 
 #endif
 
+
+std::vector<uint8_t> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
+    std::vector<uint8_t> line;
+    int samples = len*4;
+    line.reserve(samples);
+
+    int i = 0;
+    uint32_t samplecount; // Got 4 samples per buf
+    uint8_t* bytebuf = reinterpret_cast<uint8_t*>(buf);
+    while(i < samples){
+
+        line.push_back(bytebuf[i]);
+
+        i++;
+    }
+    return line;
+}

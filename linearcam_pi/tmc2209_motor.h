@@ -112,13 +112,17 @@ public:
         uint32_t asint;
     };
 
-    TMC2209_motor(int step,int dir, int en=-1,int diag=-1, const std::string& serial="",uint8_t addr = 0);
+    TMC2209_motor(int step,int dir, float mmToSteps, int en=-1,int diag=-1, const std::string& serial="",uint8_t addr = 0);
     ~TMC2209_motor();
     void init();
     void setUartAddr(uint8_t addr);
 
     int move(int64_t steps,float speed,float accel);
     void moveTo(int64_t position,float speed,float accel);
+    float moveMM(float mm,float speed,float accel);
+    void moveToMM(float mm,float speed,float accel);
+
+    inline void updatePosFromSteps(int step);
 
     bool ping();
 
@@ -136,6 +140,9 @@ public:
 
     int64_t getPos();
     void setPos(int64_t pos);
+    float getActualPos();
+
+    float stepsToMM(int64_t steps);
 
     // Uart
     void writeData(uint8_t reg,uint32_t data);
@@ -180,11 +187,11 @@ private:
     const std::string serialportname;
     int serialport = 0;
 
-    int curStepMult = 8;
-
     bool enabled = false;
     bool movingFlag = false;
     bool homed = false;
+
+    float mmToSteps;
 
     static constexpr uint8_t syncbyte = 0x55; // Different than the reply of 0x05
 
@@ -194,8 +201,11 @@ private:
     TMC2209_chopconf curchopconf;
     TMC2209_gconf curgconf;
     TMC2209_coolconf curcoolconf;
-    int64_t pos;
+    int64_t pos = 0; // step counter
+    float targetPosMM = 0.0f; // target position in MM for error calculation
     TMC2209_pinsconf curpinsconf;
+
+    float stepMult = 8;
 };
 
 #endif // TMC22_9_MOTOR_H

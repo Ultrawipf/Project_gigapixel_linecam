@@ -28,6 +28,19 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Disable debug controls when motor running
     connect(&ctrl->slideMotorQt, &MotorControlQt::idle,ui->groupBox_motorcontrol_debug,&QGroupBox::setEnabled);
+    // Motor position debug
+    connect(&ctrl->slideMotorQt, &MotorControlQt::position,ui->doubleSpinBox_motorpos_debug,&QDoubleSpinBox::setValue);
+
+    // Movement buttons
+    connect(ui->pushButton_debug_home,&QPushButton::clicked,this,&MainWindow::home);
+    connect(ui->pushButton_debug_left,&QPushButton::clicked,this,&MainWindow::moveLeft);
+    connect(ui->pushButton_debug_right,&QPushButton::clicked,this,&MainWindow::moveRight);
+    connect(ui->pushButton_preview_left,&QPushButton::clicked,this,&MainWindow::moveLeft);
+    connect(ui->pushButton_preview_right,&QPushButton::clicked,this,&MainWindow::moveRight);
+    // Dist
+    ui->doubleSpinBox_debug_dist->setValue(this->curMovementSize);
+    connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
+    connect(ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
 
 
     // Wait for init
@@ -73,24 +86,33 @@ void MainWindow::on_radioButton_mode_preview_clicked()
     ui->progressBar_scan->setVisible(false);
 }
 
+void MainWindow::changeMovementSize(double v){
+    this->curMovementSize = v;
+    ui->doubleSpinBox_debug_dist->blockSignals(true);
+    ui->doubleSpinBox_preview_dist->blockSignals(true);
+    ui->doubleSpinBox_debug_dist->setValue(v);
+    ui->doubleSpinBox_preview_dist->setValue(v);
+    ui->doubleSpinBox_debug_dist->blockSignals(false);
+    ui->doubleSpinBox_preview_dist->blockSignals(false);
+}
 
 // Debug functions:
-void MainWindow::on_pushButton_debug_home_clicked()
+void MainWindow::home()
 {
     ctrl->slideMotorQt.home();
 
 }
 
 
-void MainWindow::on_pushButton_debug_left_clicked()
+void MainWindow::moveLeft()
 {
-    ctrl->slideMotorQt.move(-ui->spinBox_debug_steps->value(),2000,10);
+    ctrl->slideMotorQt.moveMM(-curMovementSize,500,5);
 }
 
 
-void MainWindow::on_pushButton_debug_right_clicked()
+void MainWindow::moveRight()
 {
-    ctrl->slideMotorQt.move(ui->spinBox_debug_steps->value(),2000,10);
+    ctrl->slideMotorQt.moveMM(curMovementSize,500,5);
 }
 
 

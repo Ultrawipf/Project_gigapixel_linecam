@@ -20,6 +20,7 @@ public:
 
     void hideEvent(QHideEvent *event) override;
     void showEvent(QShowEvent  *event) override;
+    void resizeEvent(QResizeEvent  *event) override;
     QPixmap getCurPixmap();
 
 public slots:
@@ -30,7 +31,7 @@ public slots:
 protected:
     QProcess libcameraProc;
     // Args for IMX219 camera
-    const QStringList CAMERAARGS = {"-t","0" ,"-n","-v","0", "--inline" ,"--framerate","30","--width","1640","--height","1232","--codec","mjpeg","-o","-"};
+    const QStringList CAMERAARGS = {"-t","0" ,"-n","-v","0", "--inline","--framerate","30","--width","1640","--height","1232","--codec","mjpeg","-o","-"};
     const QString CAMERACMD = "/usr/bin/libcamera-vid";
     QByteArray streamBuf;
     const QString IDLETEXT = "Waiting for camera...";

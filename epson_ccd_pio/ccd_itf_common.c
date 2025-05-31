@@ -275,9 +275,11 @@ int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t lineleng
 
     while(pos < samples-10){
         uint32_t read = 0;
-        uint32_t nextTg = linelength; //  * (1+(pos/linelength))
+        //int32_t nextTg = linelength; //  * (1+(pos/linelength))
+        
+        pio_sm_restart(sm_data->pio,sm_data->sm); // Will wait for TG
         pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
-        pio_sm_restart(sm_data->pio,sm_data->sm);
+        //pio_sm_drain_tx_fifo(sm_data->pio,sm_data->sm);
         gpio_put(TGPIN, true);
         pos += readData(sm_data,buf+pos,12); // Maybe clear buffer and do blocking read?
         gpio_put(TGPIN, false);

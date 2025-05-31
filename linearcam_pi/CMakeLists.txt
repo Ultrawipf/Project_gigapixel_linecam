@@ -44,7 +44,7 @@ add_library(linearcam_pi_lib
     tmc2209_motor.h tmc2209_motor.cpp
     constants_pi.h
     cameracontrol.h cameracontrol.cpp
-    ccd_ctrl.cpp ccd_ctrl.h pio_ccd.h
+    ccd_ctrl.cpp ccd_ctrl.h
     ccd_constants.h
     ${CCD_SOURCES}  ${CCD_HEADERS_PUBLIC}
 )

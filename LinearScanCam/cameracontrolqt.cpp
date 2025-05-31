@@ -59,12 +59,12 @@ LinCCDQt::LinCCDQt()
     qDebug() << "Starting CCD CTRL";
 }
 LinCCDQt::~LinCCDQt(){
-    ccdctrl.setClock(false);
+    setClock(false);
 }
 
 void LinCCDQt::setClock(bool enable){
     qDebug() << "Setting CCD clock: "<<enable;
-    ccdctrl.setClock(enable);
+    CCD_Ctrl::setClock(enable);
 }
 
 QFuture<bool> LinCCDQt::init(){
@@ -73,7 +73,7 @@ QFuture<bool> LinCCDQt::init(){
     // Connect start and end functions
 
     // Start task
-    QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,&ccdctrl);
+    QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,this);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
     return future;
@@ -93,9 +93,14 @@ MotorControlQt::~MotorControlQt(){
     std::cout << "Deleting motorcontroller qt" << std::endl;
 }
 
-void MotorControlQt::emitProgress(){
-    int64_t curpos = motor->getPos();
+double MotorControlQt::emitPosition(){
+    double curpos = motor->getActualPos();
     emit position(curpos);
+    return curpos;
+}
+
+void MotorControlQt::emitProgress(){
+    double curpos = emitPosition();
     if(targetpos != startpos){
         float progressVal = std::abs(MAXPROGRESS*(curpos-startpos) / (targetpos-startpos));
         emit progress(progressVal);
@@ -105,10 +110,10 @@ void MotorControlQt::emitProgress(){
     }
 }
 
-QFuture<void> MotorControlQt::move(int64_t steps,float speed, float accel){
+QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
     if(!motor) return QtFuture::makeReadyFuture();
-    startpos = motor->getPos();
-    targetpos = startpos + steps;
+    startpos = motor->getActualPos();
+    targetpos = startpos + mm;
 
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
     connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
@@ -116,7 +121,7 @@ QFuture<void> MotorControlQt::move(int64_t steps,float speed, float accel){
     connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin);
     connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd);
     // Start task
-    QFuture<void> future = QtConcurrent::run([this,steps,speed,accel]{this->motor->move(steps,speed,accel);});
+    QFuture<void> future = QtConcurrent::run([this,mm,speed,accel]{this->motor->moveMM(mm,speed,accel);});
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
     return future;
@@ -141,6 +146,7 @@ void MotorControlQt::motorEnd(){
     emit idle(true);
     emit busy(false);
     curpromise = nullptr;
+    emitPosition();
 }
 
 void MotorControlQt::motorBegin(){
@@ -154,7 +160,7 @@ QFuture<void> MotorControlQt::home(){
     if(!motor) return QtFuture::makeReadyFuture();
 
     targetpos = 0;
-    startpos = motor->getPos();
+    startpos = motor->getActualPos();
 
     // Create future watcher
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
@@ -168,69 +174,4 @@ QFuture<void> MotorControlQt::home(){
     watcher->setFuture(future);
     return future;
 
-/*
-    FuturePromiseTimer* promiseHelper = new FuturePromiseTimer([this]()->int64_t{return this->motor->getPos();});
-    connect(promiseHelper,&FuturePromiseTimer::progress,this,&MotorControlQt::emitProgress);
-    promiseHelper->run([]{Motors::homeSlide();});
-
-*/
 }
-
-
-FuturePromiseTimer::FuturePromiseTimer(const std::function<int64_t(void)>& progressFunc,bool autodelete)
-    : progressFunc(progressFunc),autodelete(autodelete)
-{
-
-    progressTimer.setInterval(32);
-    progressTimer.callOnTimeout(this,&FuturePromiseTimer::emitProgress);
-}
-
-FuturePromiseTimer::~FuturePromiseTimer(){
-    std::cout << "Kill me" << std::endl;
-}
-
-void FuturePromiseTimer::setInterval(int interval){
-    this->progressTimer.setInterval(interval);
-}
-
-void FuturePromiseTimer::emitProgress(){
-    int64_t val = progressFunc();
-    emit progress(val);
-}
-
-void FuturePromiseTimer::endProcess(){
-    std::cout << "Done" << std::endl;
-    progressTimer.stop();
-    emit busy(false);
-    curpromise = nullptr;
-    if(autodelete){
-        this->deleteLater();
-    }
-}
-
-void FuturePromiseTimer::beginProcess(){
-    std::cout << "Start" << std::endl;
-    progressTimer.start();
-    emit progress(0);
-    emit busy(true);
-}
-
-QPromise<void>** FuturePromiseTimer::run(const std::function<void(void)>& targetFunc){
-    QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    QObject::connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
-    // Connect start and end functions
-    QObject::connect(watcher,&QFutureWatcher<void>::started,this,&FuturePromiseTimer::beginProcess);
-    QObject::connect(watcher,&QFutureWatcher<void>::finished,this,&FuturePromiseTimer::endProcess);
-    // Start task
-    QFuture<void> future = QtConcurrent::run(&FuturePromiseTimer::runner,this,targetFunc); // [this](QPromise<void> &promise){this->homeRunner(promise);}
-    watcher->setFuture(future);
-    return &curpromise;
-}
-
-void FuturePromiseTimer::runner(QPromise<void> &promise,const std::function<void(void)>& targetFunc){
-    curpromise = &promise;
-    targetFunc(); // Execute function
-}
-
-
-

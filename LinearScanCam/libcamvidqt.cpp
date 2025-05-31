@@ -44,7 +44,7 @@ void LibCamVidQt::processFrame(){
             QByteArray image_data = streamBuf.mid(ind_start_bytes, ind_end_bytes + 2);
             streamBuf = streamBuf.mid(ind_end_bytes+2);
             if(curPixmap.loadFromData(image_data, "JPG")) {
-                this->setPixmap(curPixmap.scaled(this->width(),this->height(), Qt::KeepAspectRatio));
+                this->setPixmap(curPixmap.transformed(QTransform().rotate(90)).scaled(this->width(),this->height(), Qt::KeepAspectRatio));
             }else{
                 this->setText("Error loading pixmap");
             }
@@ -56,11 +56,20 @@ void LibCamVidQt::processFrame(){
 
 void LibCamVidQt::hideEvent(QHideEvent *event){
     this->stop();
+    QLabel::hideEvent(event);
 }
 
 
 void LibCamVidQt::showEvent(QShowEvent  *event){
     this->start();
+    QLabel::showEvent(event);
+}
+
+void LibCamVidQt::resizeEvent(QResizeEvent  *event){
+    if(!curPixmap.isNull()){
+        this->setPixmap(curPixmap.transformed(QTransform().rotate(90)).scaled(this->width(),this->height(), Qt::KeepAspectRatio));
+    }
+    QLabel::resizeEvent(event);
 }
 
 #ifdef DUMMY
@@ -69,9 +78,7 @@ void LibCamVidQt::start(){
 }
 
 void LibCamVidQt::stop(){
-
 }
-
 #else
 void LibCamVidQt::start(){
     streamBuf.clear();

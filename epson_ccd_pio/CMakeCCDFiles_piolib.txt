@@ -7,7 +7,7 @@ message("Epson ccd pio included")
 include(GNUInstallDirs)
 
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.h
+  OUTPUT ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.pio.h
   COMMAND pioasm pio_ccd.pio pio_ccd.pio.h
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.pio
@@ -37,5 +37,5 @@ set(CCD_SOURCES
 set(CCD_HEADERS_PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}/ccd_commands.h
   ${CMAKE_CURRENT_LIST_DIR}/ccd_itf_common.h
-  ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.h
+  ${CMAKE_CURRENT_LIST_DIR}/pio_ccd.pio.h
 )

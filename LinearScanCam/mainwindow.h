@@ -24,16 +24,15 @@ public slots:
     void setReady(bool ready);
     void progressCb(int progress);
 
+    void moveLeft();
+    void moveRight();
+    void home();
+    void changeMovementSize(double v);
+
 private slots:
     void on_radioButton_mode_debug_clicked();
 
     void on_radioButton_mode_preview_clicked();
-
-    void on_pushButton_debug_home_clicked();
-
-    void on_pushButton_debug_left_clicked();
-
-    void on_pushButton_debug_right_clicked();
 
     void on_pushButton_quit_clicked();
 
@@ -44,6 +43,8 @@ private:
     CameraControllerQt *ctrl;
 
     QTimer progressbarHideTimer;
+
+    float curMovementSize = 10;
 
 };
 #endif // MAINWINDOW_H

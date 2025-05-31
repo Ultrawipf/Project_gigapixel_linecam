@@ -11,4 +11,6 @@
 
 #define MOTOR_SERIAL "/dev/ttyAMA0"
 
+#define MOTORLIN_MMTOSTEPS 200.0/6.0
+
 #endif // CONSTANTS_PI_H
