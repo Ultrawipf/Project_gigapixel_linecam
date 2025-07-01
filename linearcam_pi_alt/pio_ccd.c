@@ -5,7 +5,7 @@
 #include "piolib.h"
 #include "pio_ccd.h"
 #include "string.h"
-
+#include "ccd_constants.h"
 
 PIO pio; // Only one pio
 int sm_clock = 255;
@@ -58,7 +58,7 @@ int setup_clock(int argc, const char **argv){
 
 int setup_data(){
     uint offset;
-    uint gpiobase = 17; // 9 pins
+    uint gpiobase = DATABASEPIN;//17; // 9 pins
 
     sm_data = pio_claim_unused_sm(pio, true);
     pio_sm_config_xfer(pio, sm_data, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 2);
@@ -102,37 +102,11 @@ int check_if_idle(uint32_t* buf,int samples){
     return 1;
 }
 
-int main(int argc, const char **argv)
-{
-    pio = pio0;
-    // pio_clear_instruction_memory(pio);
-    // pio_sm_unclaim(pio,0);
-    // setup_clock(argc,argv);
-    setup_data();
-
-    uint32_t samples = TRANSFERSIZE;
-    uint32_t buf[1][samples];
-    memset( buf[0], 0, samples*sizeof(uint32_t) );
-    // memset( buf[1], 0, samples*sizeof(uint32_t) );
-    printf("Waiting\n");
-
-    FILE *fptr;
-    fptr = fopen("/tmp/dump.bin", "wb");
-
-    pio_sm_set_enabled(pio, sm_data, true); // Enable SM
-    // while((pio_sm_get_blocking(pio,sm_data) & 0x3F3F) == 0){
-    //     sleep_ms(10);
-    // }
-
-    for(uint i = 0;i<100;i++){
-        printf("Dat %d\n",pio_sm_get_blocking(pio,sm_data));
-    }
-    
-    
-    
-    // Open a file in writing mode
+void saveAndTransform(FILE *fptr,int samples){
     uint32_t tgcnt = 0;
     bool foundTg = false;
+    uint32_t buf[1][samples];
+    memset( buf[0], 0, samples*sizeof(uint32_t) );
     // for(uint32_t line = 0; line < 500;line++){
     uint8_t curbuf = 0;
     do{
@@ -170,7 +144,7 @@ int main(int argc, const char **argv)
             bool gotTg = buf[curbuf][i] & 0x20080200;
             if(gotTg){
                 if(tgcnt > 100){
-                    printf("TG! %d\n",tgcnt);
+                    //printf("TG! %d\n",tgcnt);
                     tgcnt = 0;
                     foundTg = true;
                 }
@@ -182,6 +156,49 @@ int main(int argc, const char **argv)
             break;
         }
     }while(foundTg);
+}
+
+void writeRaw(FILE *fptr,int samples){
+    uint32_t buf[samples];
+    memset( buf, 0, samples*sizeof(uint32_t) );
+    int amount = readData(buf,samples);
+    printf("Sampled %d\n",amount);
+
+    fwrite(buf, 4, amount, fptr);
+}
+
+int main(int argc, const char **argv)
+{
+    pio = pio0;
+    // pio_clear_instruction_memory(pio);
+    // pio_sm_unclaim(pio,0);
+    // setup_clock(argc,argv);
+    setup_data();
+
+    uint32_t samples = TRANSFERSIZE;
+
+    // memset( buf[1], 0, samples*sizeof(uint32_t) );
+    printf("Waiting\n");
+
+    FILE *fptr;
+    fptr = fopen("dump.bin", "wb");
+
+    pio_sm_set_enabled(pio, sm_data, true); // Enable SM
+    // while((pio_sm_get_blocking(pio,sm_data) & 0x3F3F) == 0){
+    //     sleep_ms(10);
+    // }
+
+    for(uint i = 0;i<100;i++){
+        printf("Dat %d\n",pio_sm_get_blocking(pio,sm_data));
+    }
+    
+    
+    //pio_sm_restart(pio,sm_data);
+    // Open a file in writing mode
+    saveAndTransform(fptr,samples); // Saves a file with data sampled with 10 bits
+    // for(uint i = 0;i<100;i++){
+    //     writeRaw(fptr,samples);
+    // }
             
     pio_sm_set_enabled(pio, sm_data, false); // Disable SM
 

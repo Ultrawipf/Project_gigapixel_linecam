@@ -38,16 +38,27 @@
 ; Reads 8b wide data
 
 .side_set 1
-wait 1 pin 9 side 0
+set x 31 side 0 ; Number of delay samples
+loopstart:
+    in x 24 side 0 
+    push block side 1  ; Fill buffer
+    jmp x-- loopstart side 0 
+
+wait 0 pin 8 side 1
+wait 1 pin 8 side 0
+set pins 9 side 1 [15]
+
+set pins 0 side 0 [15]
+
 .wrap_target
     wait 1 pin 8 side 0
     ;nop side 0
     in pins 8 side 1
     
     wait 0 pin 8 side 1
-    nop side 1
+    ;nop side 0
     ;in pins 8 side 0 ; Requires faster PIO DMA for 16b
-    ;push noblock side 0
+    push iffull block side 0
 .wrap
 
 
@@ -59,6 +70,9 @@ wait 1 pin 9 side 0
         for(uint i = dpinbase; i<dpinbase+8; i++){
             pio_gpio_init(pio, i);
         }
+        pio_gpio_init(pio, dpinbase+9);
+        pio_sm_set_consecutive_pindirs(pio,sm,dpinbase+9,1,true); // Out tg
+
         #ifdef DATADBGPIN
         pio_gpio_init(pio, DATADBGPIN);
         #endif
@@ -70,10 +84,10 @@ wait 1 pin 9 side 0
             sm_config_set_sideset_pins(&c, DATADBGPIN); // debug pin
         #endif
 
-        sm_config_set_set_pins(&c, dpinbase+6,2); // Dummy set pins for data output
+        sm_config_set_set_pins(&c, dpinbase+6,4); // Dummy set pins for data output
 
         sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-        sm_config_set_in_shift(&c, false, true, 32); // In Shift | shift_direction=right, autopush=false, push_threshold=32
+        sm_config_set_in_shift(&c, false, false, 24); // In Shift | shift_direction=right, autopush=true, push_threshold=32
 
         //hw_set_bits(&pio->input_sync_bypass, 0x3ffu << dpinbase);
         // Init before clock

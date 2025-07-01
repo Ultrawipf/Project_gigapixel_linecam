@@ -14,13 +14,26 @@ add_custom_command(
 )
 
 if(${PIOLIB})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 if (CMAKE_COMPILER_IS_GNUCC)
    add_definitions (-ffunction-sections)
 endif ()
   message("Piolib on (CCDFILE)")
   add_compile_definitions(PIOLIB)
+#  set(PIOPATH /home/pi/git/utils/piolib)
+  #set(PIOINCLUDEPATH /home/pi/git/utils/piolib/include)
   set(PIOPATH /home/pi/git/utils/piolib)
-  set(PIOINCLUDEPATH /home/pi/git/utils/piolib/include)
+  set(PIOINCLUDEPATH /usr/local/include/piolib)
+
+  set(PIOLIBPATH /usr/local/lib/libpio.a)
+
+  ## Alternative direct compile lib?
+  #add_library (pio OBJECT ${PIOPATH}/piolib.c ${PIOPATH}/pio_rp1.c)
+  #target_link_directories(pio PUBLIC ${PIOPATH})
+  #target_include_directories(pio PUBLIC ${PIOINCLUDEPATH})
+  #set(PIOLIBPATH pio)
+
+
 #  link_directories(${PIOPATH})
 #  include_directories(PIOINCLUDEPATH)
 

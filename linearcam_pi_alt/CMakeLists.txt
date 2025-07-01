@@ -15,7 +15,7 @@ add_custom_command(
 )
 
 #set project name
-project(pio_ccd)
+project(pio_ccd_test)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 
@@ -27,10 +27,10 @@ add_definitions (-DPIOLIB)
 
 # common ccd files
 file(GLOB CCD_FILES "${CMAKE_CURRENT_LIST_DIR}/../epson_ccd_pio/*.c")
-add_executable(pio_ccd ${CCD_FILES})
+#add_executable(pio_ccd ${CCD_FILES})
 
 add_library (pio OBJECT ${PIOPATH}/piolib.c ${PIOPATH}/pio_rp1.c)
-add_executable(pio_ccd pio_ccd.c ${CMAKE_CURRENT_BINARY_DIR}/pio_ccd.h)
+add_executable(pio_ccd pio_ccd.c ${CMAKE_CURRENT_BINARY_DIR}/pio_ccd.h ccd_constants.h)
 target_include_directories(pio_ccd PRIVATE)
 target_link_libraries(pio_ccd pio)
 install(TARGETS pio_ccd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

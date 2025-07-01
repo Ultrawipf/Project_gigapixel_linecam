@@ -124,6 +124,8 @@ int main()
     // pio_sm_set_consecutive_pindirs(sm_data.pio, sm_data.sm, DATABASEPIN+6, 2, true);
     
     // uint32_t tgperiod = 51830/2;
+    start_sampling(&sm_data);
+    /*
     while (true) {
         // printf("SM:%d PIO: %d OFS:%d\n",smdef->sm,smdef->pio,smdef->offset);
         // send_ctrl_data_sm(&sm_data,0x60,0x00,0x80); // Stop sampling
@@ -142,4 +144,5 @@ int main()
             sleep_ms(1);
         }
     }
+        */
 }

@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_PI_H
 #define CONSTANTS_PI_H
 
-#define RESETPIN 3
+#define RESETPIN 5//3
 #define MOTLIN_STEPPIN 10
 #define MOTLIN_DIRPIN 9
 #define MOTLIN_DIAGPIN 11

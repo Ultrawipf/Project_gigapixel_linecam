@@ -1,7 +1,7 @@
 #ifdef PIOLIB
 #include "piolib.h"
 #else
-#include "hardware/pio.h"
+#include "pio.h"
 #endif
 
 #include "ccd_constants.h"
@@ -29,6 +29,7 @@ bool setup_clock(SM_def *smdef,float freq, uint gpio);
 bool setup_data(SM_def *smdef,uint gpiobase);
 uint32_t readData(const SM_def *smdef,uint32_t* buf,int samples);
 void begin_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin);
+void end_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin);
 uint16_t read_ctrl_data_sm(const SM_def *sm_data,uint8_t cmd);
 
 void send_ctrl_data_sm_32(const SM_def *smdef,uint32_t buf);

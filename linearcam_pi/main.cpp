@@ -6,6 +6,8 @@
 
 #include "cameracontrol.h"
 #include "ccd_ctrl.h"
+#include "string.h"
+
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -39,13 +41,13 @@ int main(int argc, char* argv[]) {
     auto args = argparse::parse<MyArgs>(argc, argv);
     PinCtrl pinctrl;
     Motors motors;
-    pinctrl.setEnablePin(true);
+
 
     if (args.verbose)
         args.print();      // prints all variables
 
     if(args.motorargs.is_valid){
-
+        pinctrl.setEnablePin(true);
         motors.slideMotor_p->verbose = args.verbose;
         std::cout << "Motor steps:" << args.motorargs.steps << std::endl;
         if(args.motorargs.home){
@@ -65,28 +67,89 @@ int main(int argc, char* argv[]) {
         }
     }
     if(args.imgargs.is_valid){
+        /*
+        SM_def sm_data = {.pio = pio0,.sm = SMDEF_INVALID_VAL,.offset = SMDEF_INVALID_VAL};
+        SM_def sm_clock = {.pio = pio0,.sm = SMDEF_INVALID_VAL,.offset = SMDEF_INVALID_VAL};
+
+        const uint32_t samplenum = 122400/2;
+        uint32_t buffer[samplenum];
+        memset( buffer, 0, sizeof(buffer) );
+
+        setup_clock(&sm_clock,6000000.0,ACLKPIN);
+        setup_data(&sm_data,DATABASEPIN);
+        pio_sm_clkdiv_restart(sm_clock.pio,sm_clock.sm);
+        pio_sm_clkdiv_restart(sm_data.pio,sm_data.sm);
+
+        sleep_ms(1000);
+
+
+        // First sampling 2 TG periods? 20k values?
+
+        set_clock(&sm_clock,1); // Enable clock
+        sleep_ms(100);
+        send_ctrl_data_arr(&sm_data,startcommands,sizeof(startcommands)/sizeof(uint32_t));
+        printf("State/Ping %d\n",read_ctrl_data_sm(&sm_data,0x61));
+        sleep_ms(100);
+        send_ctrl_data_arr(&sm_data,startcommands2,sizeof(startcommands2)/sizeof(uint32_t));
+        sleep_ms(100);
+        // send_ctrl_data_arr(setupCmds_600dpi,sizeof(setupCmds_600dpi)/sizeof(uint32_t));
+        // send_ctrl_data_arr(block2,sizeof(block2)/sizeof(uint32_t));
+        send_ctrl_data_arr(&sm_data,startcommands3,sizeof(startcommands3)/sizeof(uint32_t));
+        send_ctrl_data_arr(&sm_data,register_settings,sizeof(register_settings)/sizeof(uint32_t));
+        send_ctrl_data_arr(&sm_data,startcommands4,sizeof(startcommands4)/sizeof(uint32_t));
+
+        sleep_ms(100);
+        uint32_t tgperiod = set_resolution(&sm_data,CCD_Res_div8)/2; // Mainlines only
+        set_rgb_gain_ofs(&sm_data,0x7D,0x7D,0x7D,0x3D,0x32,0x38); // Test dumped gain
+        sleep_ms(100);
+
+        FILE *fptr;
+        fptr = fopen(args.imgargs.output.c_str(), "wb");
+        start_sampling(&sm_data);
+        for(int line = 0;line < args.imgargs.lines;line++){
+            memset( buffer, 0, sizeof(buffer) );
+            readFrames(&sm_data,buffer,samplenum,tgperiod);
+            fwrite(buffer, 4, samplenum, fptr);
+        }
+        stop_sampling(&sm_data);
+        fclose(fptr);
+*/
+
 
         LinearCamCtrl cam(motors);
+        pinctrl.setEnablePin(false);
+        sleep_ms(100);
+        pinctrl.setEnablePin(true);
+
+        cam.setClock(true);
+        sleep_ms(500);
         bool inited = cam.initCCD();
         std::cout << "Init?: "<< inited << std::endl;
 
-
-        std::cout << "State: "<< cam.readData(0x61) << std::endl;
-        uint32_t period = cam.setResolution(CCD_Resolution::Div4);
+        sleep_ms(100);
+        std::cout << "State: "<< cam.readReg(0x61) << std::endl;
+        uint32_t period = cam.setResolution(CCD_Resolution::Div16) / 3;
         cam.setRgbGainOfs(0x7D,0x7D,0x7D,0x3D,0x32,0x38);
+
         FILE *fptr;
         fptr = fopen(args.imgargs.output.c_str(), "wb");
 
         cam.startCapture(); // Start CCD ouputting data
+        //cam.captureFrame(args.imgargs.lines,fptr,period);
 
         for(int line = 0;line < args.imgargs.lines;line++){
-            auto data = cam.captureLine();
-            fwrite(data.data(),1 , data.size(), fptr);
+            //auto data = cam.captureLine();
+            //fwrite(data.data(),1 , data.size(), fptr);
+            cam.captureFrame(1,fptr,period);
+            cam.moveLines(4);
+            //std::cout << "Dlen " << data.size() << std::endl;
 
         }
+
         //getchar();
         fclose(fptr);
         cam.endCapture();
+
     }
 
     pinctrl.setEnablePin(false);

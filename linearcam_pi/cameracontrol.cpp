@@ -47,9 +47,11 @@ void PinCtrl::setEnablePin(bool active){
 LinearCamCtrl::LinearCamCtrl(Motors& motors)
     : CCD_Ctrl(), motors(motors)
 {
+    /*
     bool inited = CCD_Ctrl::initCCD();
     std::cout << "Init?: "<< inited << std::endl;
-    std::cout << "State: "<< CCD_Ctrl::readData(0x61) << std::endl;
+    std::cout << "State: "<< CCD_Ctrl::readReg(0x61) << std::endl;
+    */
 
 }
 
@@ -67,10 +69,11 @@ void LinearCamCtrl::startCapture(){
 
 std::vector<uint8_t> LinearCamCtrl::captureLine(){
     moveLines(1*4);
-    uint32_t linelength = curLinelength / 4;
+    uint32_t linelength = curLinelength; // Data to buffer.
+    uint32_t tgperiod = curLinelength / 4;
     uint32_t buf[linelength];
-    std::cout << "Startcapture "<< linelength << std::endl;
-    captureData(buf,linelength,linelength); // capture one line
+    std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
+    captureData(buf,linelength,tgperiod); // capture one line
     std::cout << "Captured "<< std::endl;
     std::vector<uint8_t> line = decodeData(buf,linelength);
     return line;

@@ -90,23 +90,31 @@ void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperi
 }
 
 void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod){
+    uint32_t offset = 2;
+    const uint32_t samplesPerBuffer = 3;
     int samples = tgperiod;
     uint32_t buffer[samples] = {0};
 
-    start_sampling(&sm_data);
-    sleep_ms(50); // Dump some data first
-    
+    //start_sampling(&sm_data);
+    //sleep_ms(50); // Dump some data first
+    //std::cout << "Samples " << samples << " TG "  << tgperiod << std::endl;
+   // bool tgfound = false;
 
 
     for(uint32_t l = 0;l<lines;l++){
-        readFrames(&sm_data,buffer,samples,tgperiod);
-        for(uint32_t i = 0;i<samples;i++){
-            fwrite(&buffer[i], 4, 1, fptr);
+        readFrames(&sm_data,buffer,tgperiod,tgperiod);
+        // fwrite((uint32_t*)buffer, 3, samples, fptr);
+        const uint8_t zero = 0;
+        fwrite(&zero, 1, offset, fptr);
+        for(uint32_t i = 0;i<tgperiod;i++){
+
+            fwrite(&buffer[i], samplesPerBuffer, 1, fptr);
         }
+        fwrite(&zero, 1, samplesPerBuffer-offset, fptr);
     }
     // Close the file
     
-    stop_sampling(&sm_data);
+    //stop_sampling(&sm_data);
 
 }
 
@@ -123,10 +131,13 @@ void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGai
 bool CCD_Ctrl::initCCD(){
     
     setClock(true);
-    sleep_ms(10);
+    sleep_ms(100);
     send_ctrl_data_arr(&sm_data,startcommands,sizeof(startcommands)/sizeof(uint32_t));
+    //sleep_ms(100);
     uint32_t state1 = read_ctrl_data_sm(&sm_data,0x61);
+    //sleep_ms(100);
     send_ctrl_data_arr(&sm_data,startcommands2,sizeof(startcommands2)/sizeof(uint32_t));
+    //sleep_ms(100);
     send_ctrl_data_arr(&sm_data,startcommands3,sizeof(startcommands3)/sizeof(uint32_t));
     send_ctrl_data_arr(&sm_data,register_settings,sizeof(register_settings)/sizeof(uint32_t));
     send_ctrl_data_arr(&sm_data,startcommands4,sizeof(startcommands4)/sizeof(uint32_t));
@@ -136,7 +147,7 @@ bool CCD_Ctrl::initCCD(){
     return state1 != 0 && (state != 0 && state != 0xffff);
 }
 
-uint32_t CCD_Ctrl::readData(uint8_t adr){
+uint32_t CCD_Ctrl::readReg(uint8_t adr){
     return read_ctrl_data_sm(&sm_data,adr);
 }
 #else
@@ -157,7 +168,7 @@ void CCD_Ctrl::captureData(uint32_t* buffer,uint32_t length,uint32_t tgperiod){}
 void CCD_Ctrl::sendCtrlData(uint8_t cmd,uint8_t data1,uint8_t data2){};
 void CCD_Ctrl::sendCtrlData(uint32_t data){};
 void CCD_Ctrl::sendCtrlDataArr(const uint32_t* buf,uint32_t len){};
-uint32_t CCD_Ctrl::readData(uint8_t adr){return 0;};
+uint32_t CCD_Ctrl::readReg(uint8_t adr){return 0;};
 
 uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){curRes = res; return 0;};
 void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain){};
@@ -172,11 +183,15 @@ std::vector<uint8_t> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
 
     int i = 0;
     uint32_t samplecount; // Got 4 samples per buf
-    uint8_t* bytebuf = reinterpret_cast<uint8_t*>(buf);
-    while(i < samples){
+    //uint8_t* bytebuf = reinterpret_cast<uint8_t*>(buf);
+    while(i < len){
 
-        line.push_back(bytebuf[i]);
-
+        //line.push_back(bytebuf[i]);
+        uint32_t d = buf[i];
+        line.push_back(d & 0xff);
+        line.push_back((d >> 8) & 0xff);
+        line.push_back((d >> 16) & 0xff);
+        line.push_back((d >> 24) & 0xff);
         i++;
     }
     return line;

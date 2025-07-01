@@ -71,7 +71,6 @@ QFuture<bool> LinCCDQt::init(){
     QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>();
     connect(watcher,&QFutureWatcher<bool>::finished,watcher,&QFutureWatcher<bool>::deleteLater);
     // Connect start and end functions
-
     // Start task
     QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,this);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}

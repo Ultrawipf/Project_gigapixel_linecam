@@ -49,7 +49,7 @@ public:
     void sendCtrlData(uint8_t cmd,uint8_t data1,uint8_t data2);
     void sendCtrlData(uint32_t data);
     void sendCtrlDataArr(const uint32_t* buf,uint32_t len);
-    uint32_t readData(uint8_t adr);
+    uint32_t readReg(uint8_t adr);
 
 
     uint32_t setResolution(CCD_Resolution res);

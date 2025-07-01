@@ -1,6 +1,6 @@
 #include "ccd_itf_common.h"
 #include "ccd_constants.h" // Define in subproject
-
+#include <stdio.h>
 #ifdef PIOLIB
 #include "piolib.h"
 #include <wiringPi.h>
@@ -8,7 +8,7 @@
 // Else pico
 
 // #include "ccd_commands.h"
-#include "hardware/pio.h"
+//#include "pio.h"
 #endif
 #include "pio_ccd.pio.h"
 
@@ -28,6 +28,10 @@ void gpio_put(uint32_t pin, bool state){
 bool gpio_get(uint32_t pin){
     return digitalRead(pin);
 }
+#endif
+
+#ifndef PIODATACLOCK 
+#define PIODATACLOCK 60000000.0f
 #endif
 
 // Constants
@@ -97,7 +101,7 @@ bool setup_data(SM_def *smdef,uint gpiobase){
     }
     
     // printf("Loaded ccd data at %d, using sm %d, gpio %d\n", smdef->offset, smdef->sm, gpiobase);
-    ccddata_program_init(smdef->pio, smdef->sm, smdef->offset, gpiobase, 60000000.0f); // 60000000
+    ccddata_program_init(smdef->pio, smdef->sm, smdef->offset, gpiobase, PIODATACLOCK); // 60000000
     if(ACLKPIN != gpiobase+8){ // If clock out is not the same pin as clock in initialize clock in here
         pio_gpio_init(smdef->pio, gpiobase+8);
     }
@@ -120,6 +124,9 @@ uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
         #ifdef PIOLIB
         curlen = MIN(samples-ofs,TRANSFERSIZE);
         ret = pio_sm_xfer_data(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, curlen*sizeof(uint32_t), buf+ofs);
+        if(ret){
+            printf("pio sm xfer err %d",ret);
+        }
         #else
         buf[ofs] = pio_sm_get_blocking(smdef->pio, smdef->sm);
         #endif
@@ -137,11 +144,19 @@ uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
 void begin_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin){
     pio_sm_set_enabled(smdef->pio,smdef->sm,false); // Turn off SM
     pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, true); // Set pins to output
-    pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0)); // Clock high
+    pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0)); // Clock low
     sleep_us(100);
     gpio_put(CSPIN, false); // Assert CS
     sleep_us(100);
 }
+
+void end_ctrl_data_transfer(const SM_def *smdef,uint32_t basepin){
+    pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0)); // Both low
+    pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, false); // Set pindirs back
+    gpio_put(CSPIN, true); // Release CS
+    sleep_us(DATA_BIT_DELAY_US*2);
+}
+
 
 /**
  * @brief Reads a 16b value via the DIO data interface
@@ -173,8 +188,7 @@ uint16_t read_ctrl_data_sm(const SM_def *smdef,uint8_t cmd){
         }
         sleep_us(DATA_BIT_DELAY_US);
     }
-    pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, false); // Set dat and clock back to input
-    gpio_put(CSPIN, true); // Release CS
+    end_ctrl_data_transfer(smdef,basepin);
     return buf;
 }
 
@@ -195,13 +209,12 @@ void send_ctrl_data_sm_32(const SM_def *smdef,uint32_t buf){
         #else
         uint8_t curbit = (buf >> (23-count) ) & 0x01; // Shift MSB
         #endif
-        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | curbit)); // Clock low
+        pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 0 |curbit)); // Clock low
         sleep_us(DATA_BIT_DELAY_US);
         pio_sm_exec(smdef->pio, smdef->sm, (PIOSETINST | 2 | curbit)); // Clock high
         sleep_us(DATA_BIT_DELAY_US);
     }
-    pio_sm_set_consecutive_pindirs(smdef->pio, smdef->sm, basepin+6, 2, false); // Set pindirs back
-    gpio_put(CSPIN, true); // Release CS
+    end_ctrl_data_transfer(smdef,basepin);
 }
 void send_ctrl_data_sm(const SM_def *sm_data,uint8_t cmd,uint8_t data1,uint8_t data2){
     uint32_t buf = (cmd << 16) | (data1<<8) | data2;
@@ -237,52 +250,63 @@ void stop_sampling(const SM_def *sm_data){
  * @return uint32_t Required TG interval
  */
 uint32_t set_resolution(const SM_def *sm_data,CCD_Resolution_t resPreset){
-    const uint32_t samplecount = 122400;
+    const uint32_t samplecount = 122400; // Pixels. Divisible by 12 (3 and 4 or 2)
     switch(resPreset){
         case CCD_Res_Full: // Main+Sub x2
         send_ctrl_data_arr(sm_data,setupCmds_4800dpi,sizeof(setupCmds_4800dpi)/sizeof(uint32_t));// Set 4800
-        return 130550; // Full width valid
+        return 130548; // Full width valid
         break;
         case CCD_Res_div2: // Main+Sub x1
         send_ctrl_data_arr(sm_data,setupCmds_2400dpi,sizeof(setupCmds_2400dpi)/sizeof(uint32_t));// Set 2400
-        return 66800; // Full width valid
+        return 65280; // Full width valid
         break;
         case CCD_Res_div4: // Main only
         send_ctrl_data_arr(sm_data,setupCmds_1200dpi,sizeof(setupCmds_1200dpi)/sizeof(uint32_t));// Set 1200
-        return 51830; // 40k valid samples
+        return 51828; // 40k valid samples
         break;
         case CCD_Res_div8: // Main w. skip
         send_ctrl_data_arr(sm_data,setupCmds_600dpi,sizeof(setupCmds_600dpi)/sizeof(uint32_t));// Set 600
-        return 27640; // ~20k valid samples
+        return 27648; // ~20k valid samples
         break;
         case CCD_Res_div16: // Mainw. skip
         send_ctrl_data_arr(sm_data,setupCmds_300dpi,sizeof(setupCmds_300dpi)/sizeof(uint32_t));// Set 300
-        return 27640; // Skips many pixels. ~10k valid samples
+        return 27648; // Skips many pixels. ~10k valid samples
         break;
     }
 }
-
 
 /*
 Read a lot of data and set TG pulse after each linelength interval
 */
 int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t linelength){
     uint32_t pos = 0;
-    // printf("Reading frames %d tg each %d\n",samples,linelength);
-    pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
-    // pio_sm_restart(sm_data.pio,sm_data.sm);
+    printf("Reading frames %d tg each %d\n",samples,linelength);
+    //pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+
+    //pio_sm_restart(sm_data->pio,sm_data->sm);
+    //pio_sm_set_enabled(sm_data.pio,sm_data->sm, true); // Enable SM
     // pio_sm_set_enabled(sm_data.pio,sm_data.sm, true); // Enable SM
 
-    while(pos < samples-10){
+    while(pos < samples){
         uint32_t read = 0;
         //int32_t nextTg = linelength; //  * (1+(pos/linelength))
-        
-        pio_sm_restart(sm_data->pio,sm_data->sm); // Will wait for TG
+
+        //pio_sm_restart(sm_data->pio,sm_data->sm); // Will wait for TG
+
+        pio_sm_set_enabled(sm_data->pio,sm_data->sm, false); // Disable SM
         pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+        pio_sm_exec(sm_data->pio, sm_data->sm, (0x0000 | sm_data->offset )); // Reset
+        pio_sm_set_enabled(sm_data->pio,sm_data->sm, true); // Enable SM
+        //pio_sm_exec(sm_data->pio, sm_data->sm,0x3fa9);
         //pio_sm_drain_tx_fifo(sm_data->pio,sm_data->sm);
-        gpio_put(TGPIN, true);
-        pos += readData(sm_data,buf+pos,12); // Maybe clear buffer and do blocking read?
-        gpio_put(TGPIN, false);
+        //gpio_put(TGPIN, true);
+        //pio_sm_exec(sm_data->pio, sm_data->sm, (PIOSETINST | 0x0f00 | 0x08)); // TG high + 15 cycle wait
+        //pos += readData(sm_data,buf+pos,12); // Maybe clear buffer and do blocking read?
+        //?pio_sm_drain_tx_fifo(sm_data->pio,sm_data->sm);
+        //pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+        //gpio_put(TGPIN, false);
+
+        //pio_sm_exec(sm_data->pio, sm_data->sm, (PIOSETINST | 0)); // TG low
         read = readData(sm_data,buf+pos,MIN(linelength,samples-pos));
         if(read){
             pos+=read;
@@ -292,6 +316,32 @@ int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t lineleng
     }
     return pos;
 }
+
+/*
+int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t linelength){
+    uint32_t pos = 0;
+    uint32_t read = 0;
+    printf("Reading frames %d tg each %d\n",samples,linelength);
+    //pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+    pio_sm_set_enabled(sm_data->pio,sm_data->sm, true); // Enable SM
+    //pio_sm_restart(sm_data->pio,sm_data->sm);
+    //pio_sm_set_enabled(sm_data.pio,sm_data->sm, true); // Enable SM
+    // pio_sm_set_enabled(sm_data.pio,sm_data.sm, true); // Enable SM
+    //pio_sm_exec(sm_data->pio, sm_data->sm, (0x1f00 | 0x00)); // Reset
+    pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+    pio_sm_exec(sm_data->pio, sm_data->sm, (PIOSETINST | 0x0f00 | 0x08)); // TG high
+    //pos += readData(sm_data,buf+pos,12); // Maybe clear buffer and do blocking read?
+    pio_sm_exec(sm_data->pio, sm_data->sm, (PIOSETINST | 0)); // TG low
+    read = readData(sm_data,buf+pos,MIN(linelength,samples-pos));
+    if(read){
+        pos+=read;
+    }else{
+        return 0;
+    }
+
+    return pos;
+}
+*/
 
 /**
  * @brief Set the rgb gain ofs object
