@@ -11,7 +11,7 @@ Motors::Motors()
 {
     //TMC2209_motor Motors::slideMotor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,MOTOR_SERIAL);
     slideMotor.init();
-    slideMotor.invdir = true;
+    slideMotor.invdir = false;
     //slideMotor.updateConfigFromChip();
     slideMotor_p = &slideMotor;
 }
@@ -52,6 +52,7 @@ LinearCamCtrl::LinearCamCtrl(Motors& motors)
     std::cout << "Init?: "<< inited << std::endl;
     std::cout << "State: "<< CCD_Ctrl::readReg(0x61) << std::endl;
     */
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms8);
 
 }
 
@@ -61,21 +62,22 @@ LinearCamCtrl::~LinearCamCtrl(){
 
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms16);
     CCD_Ctrl::startCapture();
     // clear ccd
-
+    // Clear last buffer
 
 }
 
-std::vector<uint8_t> LinearCamCtrl::captureLine(){
-    moveLines(1*4);
-    uint32_t linelength = curLinelength; // Data to buffer.
-    uint32_t tgperiod = curLinelength / 4;
-    uint32_t buf[linelength];
-    std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
-    captureData(buf,linelength,tgperiod); // capture one line
+std::vector<CCDPixel> LinearCamCtrl::captureLine(){
+    moveLines(curParams.moveLines);
+    uint32_t linelength = curParams.samplesPerLine; // Data to buffer.
+    uint32_t tgperiod = linelength / 3;
+    uint32_t buf[tgperiod];
+    //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
+    captureData(buf,tgperiod,tgperiod); // capture one line
     std::cout << "Captured "<< std::endl;
-    std::vector<uint8_t> line = decodeData(buf,linelength);
+    std::vector<CCDPixel> line = decodeData(buf,linelength);
     return line;
 }
 

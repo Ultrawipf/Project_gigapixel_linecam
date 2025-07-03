@@ -107,8 +107,8 @@ void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod){
         const uint8_t zero = 0;
         fwrite(&zero, 1, offset, fptr);
         for(uint32_t i = 0;i<tgperiod;i++){
-
-            fwrite(&buffer[i], samplesPerBuffer, 1, fptr);
+            uint32_t pxl = ((buffer[i] & 0xff0000) >> 16 ) | ((buffer[i] & 0xff00)) |( (buffer[i] & 0xff) << 16); // BGR to RGB
+            fwrite(&pxl, samplesPerBuffer, 1, fptr);
         }
         fwrite(&zero, 1, samplesPerBuffer-offset, fptr);
     }
@@ -118,10 +118,65 @@ void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod){
 
 }
 
-uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){
+void CCD_Ctrl::setResolution(CCD_Resolution res){
     curRes = res;
-    curLinelength = set_resolution(&sm_data,static_cast<CCD_Resolution_t>(res));
-    return curLinelength;
+    set_resolution(&sm_data,static_cast<CCD_Resolution_t>(res));
+    curParams = getParamsFromResolution(res);
+}
+
+CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
+    switch(res){
+    case CCD_Resolution::Full: // Main+Sub x2
+        return CCD_Parameters{
+            .validPixelBegin = 333,
+            .validPixelEnd = 40800,
+            .samplesPerLine = 130548,
+            .bytesPerColor = 1,
+            .moveLines = 1,
+            .colorOffset = 0
+        };
+        break;
+    case CCD_Resolution::Div2: // Main+Sub x1
+        return CCD_Parameters{
+            .validPixelBegin = 333,
+            .validPixelEnd = 40800/2,
+            .samplesPerLine = 65280,
+            .bytesPerColor = 1,
+            .moveLines = 2,
+            .colorOffset = 0
+        };
+        break;
+    case CCD_Resolution::Div4: // Main only
+        return CCD_Parameters{
+            .validPixelBegin = 333,
+            .validPixelEnd = 40800/4,
+            .samplesPerLine = 32640,
+            .bytesPerColor = 1,
+            .moveLines = 4,
+            .colorOffset = 20
+        };
+        break;
+    case CCD_Resolution::Div8: // Main w. skip
+        return CCD_Parameters{
+            .validPixelBegin = 333,
+            .validPixelEnd = 40800/8,
+            .samplesPerLine = 27648,
+            .bytesPerColor = 1,
+            .moveLines = 8,
+            .colorOffset = 10
+        };
+        break;
+    case CCD_Resolution::Div16: // Mainw. skip
+        return CCD_Parameters{
+            .validPixelBegin = 333,
+            .validPixelEnd = 40800/16,
+            .samplesPerLine = 27648,
+            .bytesPerColor = 1,
+            .moveLines = 16,
+            .colorOffset = 5
+        };
+        break;
+    }
 }
 
 void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain){
@@ -176,22 +231,23 @@ void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGai
 #endif
 
 
-std::vector<uint8_t> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
-    std::vector<uint8_t> line;
-    int samples = len*4;
-    line.reserve(samples);
+std::vector<CCDPixel> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
+    std::vector<CCDPixel> line;
+    int samples = len*3;
 
-    int i = 0;
+    uint32_t offset = curParams.validPixelBegin;
+    uint32_t pixelend = curParams.validPixelEnd;
+    line.reserve(pixelend-offset);
+    assert(len >= pixelend+offset);
+    int i = offset;
     uint32_t samplecount; // Got 4 samples per buf
     //uint8_t* bytebuf = reinterpret_cast<uint8_t*>(buf);
-    while(i < len){
+    while(i < pixelend){
 
         //line.push_back(bytebuf[i]);
-        uint32_t d = buf[i];
-        line.push_back(d & 0xff);
-        line.push_back((d >> 8) & 0xff);
-        line.push_back((d >> 16) & 0xff);
-        line.push_back((d >> 24) & 0xff);
+        uint32_t d = buf[i]; // r,g,b or BGR?
+        line.emplace_back((d >> 16) & 0xff,(d >> 8) & 0xff,d & 0xff); // Save as bgr
+
         i++;
     }
     return line;

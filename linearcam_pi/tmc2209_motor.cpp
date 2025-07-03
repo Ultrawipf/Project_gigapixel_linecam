@@ -234,7 +234,7 @@ float TMC2209_motor::moveMM(float mm,float speed,float accel){
     int mult = stepMult;
     float posErr = targetPosMM + mm - getActualPos();
     int64_t stepsToDo = std::round(mmToSteps * posErr * mult);
-    std::cout << "Moving mm "<<posErr << " steps "<<stepsToDo << std::endl;
+    std::cout << "Moving mm "<<posErr << " steps "<<stepsToDo << " mult " << stepMult << std::endl;
     speed = speed * mult;
     accel = accel * mult;
     move(stepsToDo,speed,accel);

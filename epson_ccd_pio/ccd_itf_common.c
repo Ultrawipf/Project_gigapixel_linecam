@@ -12,10 +12,10 @@
 #endif
 #include "pio_ccd.pio.h"
 
-#define  MAX( a, b ) ( ( a > b) ? a : b ) 
-#define  MIN( a, b ) ( ( a < b) ? a : b ) 
+#define  MAX( a, b ) ( ( a > b) ? a : b )
+#define  MIN( a, b ) ( ( a < b) ? a : b )
 
-#define TRANSFERSIZE 122400 // One line 122400^
+#define TRANSFERSIZE 42000 // One line 122400 + a bit more dummy data
 #define DATA_BIT_DELAY_US 10
 // #define CTRL_LSBFIRST
 
@@ -117,7 +117,7 @@ uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
     }
     
     uint32_t ret = 0;
-    uint32_t ofs = 0;
+    int ofs = 0;
     uint32_t curlen = 1;
     // printf("Waiting for %d samples\n",samples);
     while(ofs < samples){
@@ -247,39 +247,33 @@ void stop_sampling(const SM_def *sm_data){
  * @brief Changes the line resolution
  * 
  * @param resPreset Resolution preset identifier
- * @return uint32_t Required TG interval
  */
-uint32_t set_resolution(const SM_def *sm_data,CCD_Resolution_t resPreset){
-    const uint32_t samplecount = 122400; // Pixels. Divisible by 12 (3 and 4 or 2)
+void set_resolution(const SM_def *sm_data,CCD_Resolution_t resPreset){
+
     switch(resPreset){
         case CCD_Res_Full: // Main+Sub x2
         send_ctrl_data_arr(sm_data,setupCmds_4800dpi,sizeof(setupCmds_4800dpi)/sizeof(uint32_t));// Set 4800
-        return 130548; // Full width valid
-        break;
+        return; // Full width valid
         case CCD_Res_div2: // Main+Sub x1
         send_ctrl_data_arr(sm_data,setupCmds_2400dpi,sizeof(setupCmds_2400dpi)/sizeof(uint32_t));// Set 2400
-        return 65280; // Full width valid
-        break;
+        return;
         case CCD_Res_div4: // Main only
         send_ctrl_data_arr(sm_data,setupCmds_1200dpi,sizeof(setupCmds_1200dpi)/sizeof(uint32_t));// Set 1200
-        return 51828; // 40k valid samples
-        break;
+        return;
         case CCD_Res_div8: // Main w. skip
         send_ctrl_data_arr(sm_data,setupCmds_600dpi,sizeof(setupCmds_600dpi)/sizeof(uint32_t));// Set 600
-        return 27648; // ~20k valid samples
-        break;
+        return;
         case CCD_Res_div16: // Mainw. skip
         send_ctrl_data_arr(sm_data,setupCmds_300dpi,sizeof(setupCmds_300dpi)/sizeof(uint32_t));// Set 300
-        return 27648; // Skips many pixels. ~10k valid samples
-        break;
+        return;
     }
 }
 
 /*
 Read a lot of data and set TG pulse after each linelength interval
 */
-int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t linelength){
-    uint32_t pos = 0;
+int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,int linelength){
+    int pos = 0;
     printf("Reading frames %d tg each %d\n",samples,linelength);
     //pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
 

@@ -39,11 +39,11 @@ void send_ctrl_data_arr(const SM_def *sm_data,const uint32_t* buf,uint32_t len);
 void start_sampling(const SM_def *sm_data);
 void stop_sampling(const SM_def *sm_data);
 
-uint32_t set_resolution(const SM_def *sm_data,CCD_Resolution_t resPreset);
+void set_resolution(const SM_def *sm_data,CCD_Resolution_t resPreset);
 
 void set_rgb_gain_ofs(const SM_def *sm_data,uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain);
 
-int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,uint32_t linelength);
+int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,int linelength);
 
 
 

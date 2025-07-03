@@ -35,15 +35,15 @@ public:
     void startCapture();
     //void endCapture();
     //std::vector<std::tuple<uint16_t,uint16_t,uint16_t>> captureLine(); // Should return last valid line or use a callback
-    std::vector<uint8_t> captureLine(); // Should return last valid line or use a callback
+    std::vector<CCDPixel> captureLine(); // Should return last valid line or use a callback
     void moveLines(float lines);
 
     //uint32_t setResolution(CCD_Resolution res);
-    const float moveAccel = 10;
-    const float moveSpeed = 500;
-    const float lineDistMM = 0.004; // Pixel size
-    const float mainLineDistMM = 0.048; // 12 lines
-    const float subLineDistMM = 0.008; // 2 lines
+
+    const float imageStartPosMM = 25; // Begin of valid image area
+    const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
+    const float imageEndPosMM = 85; // End of valid image area
+
 
 protected:
     //CCD_Ctrl ccd;

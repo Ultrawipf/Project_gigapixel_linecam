@@ -7,10 +7,10 @@
 #define MOTLIN_DIAGPIN 11
 #define MOTLIN_ENPIN 12
 
-#define MOTLIN_UM_PER_FULLSTEP 30 //200steps/6mm
+//#define MOTLIN_UM_PER_FULLSTEP 30 //200steps/6mm
 
 #define MOTOR_SERIAL "/dev/ttyAMA0"
 
-#define MOTORLIN_MMTOSTEPS 200.0/6.0
+#define MOTORLIN_MMTOSTEPS 200.0/4.0
 
 #endif // CONSTANTS_PI_H

@@ -14,15 +14,18 @@ struct ImgArgs : public argparse::Args {
     bool &nomove             = flag("s,static capture", "Do not move stepper");
     uint32_t &lines        = kwarg("l,lines", "Capture l lines").set_default(1);
     std::string &output    = arg("out,output file", "Image output or \"-\" for stdio").set_default("-");
+    unsigned int &resdiv          = kwarg("r,res", "Resolution divider. 0-4 (Div0 to Div16). Default 3 = div8").set_default(3);
 };
 
 struct StepperArgs : public argparse::Args {
     bool &home             = flag("h,home", "Home stepper");
     int &steps             = kwarg("s", "Move stepper s steps").set_default(0);
+    int &mm                = kwarg("m", "Move stepper distance mm").set_default(0);
+    int &pos                = kwarg("p", "Move stepper to position in mm").set_default(0);
     std::optional<uint8_t> &microstep     = kwarg("ms", "Microstep multiplier options: ms256 = 0,ms128 = 1,ms64 = 2, ms32=3,ms16=4,ms8=5,ms4=6,ms2=7,fullstep=8");
     int &speed             = kwarg("v", "Speed v").set_default(500);
     int &accel             = kwarg("a", "Accel a").set_default(20);
-    std::string& serial = kwarg("p","serial port, default /dev/ttyAMA0").set_default("/dev/ttyAMA0");
+    std::string& serial = kwarg("port","serial port, default /dev/ttyAMA0").set_default("/dev/ttyAMA0");
 };
 
 
@@ -63,6 +66,18 @@ int main(int argc, char* argv[]) {
         if(args.motorargs.steps){
             motors.slideMotor_p->setEnable(true);
             motors.slideMotor_p->move(args.motorargs.steps,args.motorargs.speed,args.motorargs.accel);
+            motors.slideMotor_p->setEnable(false);
+        }
+        if(args.motorargs.mm){
+            motors.slideMotor_p->setEnable(true);
+            motors.slideMotor_p->moveMM(args.motorargs.mm,args.motorargs.speed,args.motorargs.accel);
+            motors.slideMotor_p->setEnable(false);
+        }
+        if(args.motorargs.pos){
+            motors.slideMotor_p->setEnable(true);
+            if(!motors.slideMotor_p->wasHomed())
+                motors.homeSlide();
+            motors.slideMotor_p->moveToMM(args.motorargs.pos,args.motorargs.speed,args.motorargs.accel);
             motors.slideMotor_p->setEnable(false);
         }
     }
@@ -126,9 +141,17 @@ int main(int argc, char* argv[]) {
         bool inited = cam.initCCD();
         std::cout << "Init?: "<< inited << std::endl;
 
+
+
         sleep_ms(100);
         std::cout << "State: "<< cam.readReg(0x61) << std::endl;
-        uint32_t period = cam.setResolution(CCD_Resolution::Div16) / 3;
+        unsigned int respres = std::min(4u,args.imgargs.resdiv);
+        CCD_Resolution res = static_cast<CCD_Resolution>(respres);
+        cam.setResolution(res);
+        CCD_Parameters params = cam.getParamsFromResolution(res);
+        std::cout << "Respreset: "<< respres << " move " << params.moveLines << std::endl;
+        uint32_t period = params.samplesPerLine / 3;
+
         cam.setRgbGainOfs(0x7D,0x7D,0x7D,0x3D,0x32,0x38);
 
         FILE *fptr;
@@ -141,7 +164,7 @@ int main(int argc, char* argv[]) {
             //auto data = cam.captureLine();
             //fwrite(data.data(),1 , data.size(), fptr);
             cam.captureFrame(1,fptr,period);
-            cam.moveLines(4);
+            cam.moveLines(params.moveLines);
             //std::cout << "Dlen " << data.size() << std::endl;
 
         }
