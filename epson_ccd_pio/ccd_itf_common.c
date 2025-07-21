@@ -125,7 +125,7 @@ uint32_t readData(const SM_def *smdef, uint32_t* buf,int samples){
         curlen = MIN(samples-ofs,TRANSFERSIZE);
         ret = pio_sm_xfer_data(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, curlen*sizeof(uint32_t), buf+ofs);
         if(ret){
-            printf("pio sm xfer err %d",ret);
+            printf("pio sm xfer err %d\n",ret);
         }
         #else
         buf[ofs] = pio_sm_get_blocking(smdef->pio, smdef->sm);

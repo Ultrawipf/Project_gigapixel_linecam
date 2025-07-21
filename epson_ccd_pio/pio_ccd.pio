@@ -70,7 +70,7 @@ set pins 0 side 0 [0]
         for(uint i = dpinbase; i<dpinbase+8; i++){
             pio_gpio_init(pio, i);
         }
-        pio_gpio_init(pio, dpinbase+9);
+        pio_gpio_init(pio, dpinbase+9); // TG
         pio_sm_set_consecutive_pindirs(pio,sm,dpinbase+9,1,true); // Out tg
 
         #ifdef DATADBGPIN

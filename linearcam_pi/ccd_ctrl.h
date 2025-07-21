@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <tuple>
+#include <array>
 
 enum class CCD_Resolution : unsigned int{
     Full=0,
@@ -36,12 +37,33 @@ extern "C" {
 
 #endif
 
+typedef uint8_t ccdpixel;
+
+// TODO REMOVE
 class CCDPixel{
 public:
     uint8_t r;
     uint8_t g;
     uint8_t b;
     CCDPixel(uint8_t r,uint8_t g, uint8_t b) : r(r),g(g),b(b){}
+};
+
+class CCD_ImageCorrection{
+public:
+    CCD_ImageCorrection(uint32_t linelength,uint32_t bufferlength);
+    ~CCD_ImageCorrection();
+
+    void offsetLine(uint32_t start,uint32_t stride,int offset);
+    void addLine(const std::vector<ccdpixel> &line);
+    std::vector<ccdpixel> getLine(int bufferoffset);
+    uint32_t incrementLine();
+
+private:
+    uint32_t getIdxOffset(int offset);
+    uint32_t linelength;
+    uint32_t bufferlength;
+    uint32_t curIdx = 0; // Index wraps buffer
+    std::vector<std::vector<ccdpixel>> buf;
 };
 
 class CCD_Ctrl{
@@ -79,8 +101,21 @@ public:
     const float moveAccel = 50;
     const float moveSpeed = 500;
     const float lineDistMM = 0.00125; // Pixel size (4-4.5um?)
+
+    const int colorLineDistShift = 24;
+    const int subLineDistShift = 2;
+    const int mainLineDistShift = 12;
+
     const float mainLineDistMM = lineDistMM*12; // 12 lines
     const float subLineDistMM = lineDistMM*2; // 2 lines
+    const float colorLineDistMM = lineDistMM*24; // 2 main lines
+
+
+    const std::array<int,12> lineshiftsFullres = {colorLineDistShift*2,colorLineDistShift,0,
+                                                   colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
+                                                   colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
+                                                   colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
+    };
 
 protected:
 #ifndef DUMMY

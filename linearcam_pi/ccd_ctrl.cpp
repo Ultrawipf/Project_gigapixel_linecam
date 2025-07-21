@@ -24,8 +24,8 @@ CCD_Ctrl::CCD_Ctrl()
     pinMode(CSPIN, OUTPUT);
     digitalWrite(CSPIN, true); // CS idle high
 
-    pinMode(TGPIN, OUTPUT);
-    digitalWrite(TGPIN, false); // TG idle low
+    //pinMode(TGPIN, OUTPUT);
+    //digitalWrite(TGPIN, false); // TG idle low
 
 #ifdef LEDPIN
     pinMode(LEDPIN, OUTPUT);
@@ -230,7 +230,7 @@ void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGai
 
 #endif
 
-
+// TODO REMOVE
 std::vector<CCDPixel> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
     std::vector<CCDPixel> line;
     int samples = len*3;
@@ -251,4 +251,49 @@ std::vector<CCDPixel> CCD_Ctrl::decodeData(uint32_t* buf,uint32_t len){
         i++;
     }
     return line;
+}
+
+
+CCD_ImageCorrection::CCD_ImageCorrection(uint32_t linelength,uint32_t bufferlength)
+    : linelength(linelength),bufferlength(bufferlength)
+{
+    this->buf.resize(bufferlength); // Add default vectors
+    for(int i = 0;i<bufferlength;i++){
+        std::vector<ccdpixel>& line = this->buf[i];
+        line.resize(linelength,0); // Fill with 0
+    }
+}
+
+
+CCD_ImageCorrection::~CCD_ImageCorrection(){
+
+}
+
+uint32_t CCD_ImageCorrection::incrementLine(){
+    curIdx = getIdxOffset(1);
+    return curIdx;
+}
+
+uint32_t CCD_ImageCorrection::getIdxOffset(int offset){
+    return (curIdx + offset) % bufferlength;
+}
+
+void CCD_ImageCorrection::addLine(const std::vector<ccdpixel> &line){
+    buf[curIdx] = line;
+}
+
+void CCD_ImageCorrection::offsetLine(uint32_t start,uint32_t stride,int offset){
+    // Move every stride entry by offset lines in the buffer starting with start to the end
+//for i in range(start, len(array[line]), period):
+//        array[line-offset][i] = array[line][i]
+    uint32_t offsetIdx = getIdxOffset(offset);
+    for(int i = start; i < buf[curIdx].size();i+=stride){
+        buf[offsetIdx][i] = buf[curIdx][i];
+    }
+}
+
+
+
+std::vector<ccdpixel> CCD_ImageCorrection::getLine(int bufferoffset){
+    return buf[getIdxOffset(bufferoffset)];
 }
