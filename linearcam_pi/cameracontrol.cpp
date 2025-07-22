@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <tuple>
+#include <memory>
 
 TMC2209_motor* Motors::slideMotor_p;
 //TMC2209_motor Motors::slideMotor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,MOTOR_SERIAL);
@@ -63,21 +64,32 @@ LinearCamCtrl::~LinearCamCtrl(){
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
     motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms16);
+    this->imageCorrection = std::make_unique<CCD_ImageCorrection>(curParams.samplesPerLine,curParams.lineBuffers);
+
     CCD_Ctrl::startCapture();
     // clear ccd
     // Clear last buffer
 
 }
 
-std::vector<CCDPixel> LinearCamCtrl::captureLine(){
+// Returns last valid line
+std::vector<ccdpixel> LinearCamCtrl::captureLine(){
     moveLines(curParams.moveLines);
     uint32_t linelength = curParams.samplesPerLine; // Data to buffer.
     uint32_t tgperiod = linelength / 3;
     uint32_t buf[tgperiod];
     //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
-    captureData(buf,tgperiod,tgperiod); // capture one line
-    std::cout << "Captured "<< std::endl;
-    std::vector<CCDPixel> line = decodeData(buf,linelength);
+    captureData(buf,tgperiod,tgperiod); // capture one line of raw data
+    imageCorrection->addLineBuf(buf,tgperiod);
+    // Do offsets
+    uint32_t stride = curParams.lineOffsets.size();
+    for(int i = 0;i<stride;i++){
+        imageCorrection->offsetLine(i,stride,-curParams.lineOffsets[i]);
+    }
+
+    //std::cout << "Captured "<< std::endl;
+    std::vector<ccdpixel> line = imageCorrection->getLine(1); // Get last line in buffer;
+    imageCorrection->incrementLine(); // Shift current pointer
     return line;
 }
 

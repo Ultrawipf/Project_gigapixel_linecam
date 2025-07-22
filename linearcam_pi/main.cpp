@@ -7,7 +7,9 @@
 #include "cameracontrol.h"
 #include "ccd_ctrl.h"
 #include "string.h"
-
+#include "bitmap.hpp"
+#include <fstream>
+#include <iterator>
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -15,6 +17,7 @@ struct ImgArgs : public argparse::Args {
     uint32_t &lines        = kwarg("l,lines", "Capture l lines").set_default(1);
     std::string &output    = arg("out,output file", "Image output or \"-\" for stdio").set_default("-");
     unsigned int &resdiv          = kwarg("r,res", "Resolution divider. 0-4 (Div0 to Div16). Default 3 = div8").set_default(3);
+    bool &raw             = flag("d,raw", "Save as raw data instead of bitmap");
 };
 
 struct StepperArgs : public argparse::Args {
@@ -152,26 +155,56 @@ int main(int argc, char* argv[]) {
         std::cout << "Respreset: "<< respres << " move " << params.moveLines << std::endl;
         uint32_t period = params.samplesPerLine / 3;
 
-        cam.setRgbGainOfs(0x7D,0x7D,0x7D,0x3D,0x32,0x38);
+        cam.setRgbGainOfs(0x7D,0x7D,0x7D,0x38,0x32,0x38);
 
-        FILE *fptr;
-        fptr = fopen(args.imgargs.output.c_str(), "wb");
+        if(args.imgargs.raw){
+            FILE *fptr;
+            fptr = fopen(args.imgargs.output.c_str(), "wb");
 
-        cam.startCapture(); // Start CCD ouputting data
-        //cam.captureFrame(args.imgargs.lines,fptr,period);
+            cam.startCapture(); // Start CCD ouputting data
+            //cam.captureFrame(args.imgargs.lines,fptr,period);
 
-        for(int line = 0;line < args.imgargs.lines;line++){
-            //auto data = cam.captureLine();
-            //fwrite(data.data(),1 , data.size(), fptr);
-            cam.captureFrame(1,fptr,period);
-            cam.moveLines(params.moveLines);
-            //std::cout << "Dlen " << data.size() << std::endl;
+            for(int line = 0;line < args.imgargs.lines;line++){
+                cam.captureFrame(1,fptr,period);
+                cam.moveLines(params.moveLines);
+            }
 
+            fclose(fptr);
+            cam.endCapture();
+        }else{
+            //std::ofstream file;
+            //file.open(args.imgargs.output, ios::out | ios::app | ios::binary);
+
+            // Works saving bitmap without corrections:
+            // FILE *file;
+            // file = fopen(args.imgargs.output.c_str(), "wb");
+
+            // bmp::BitmapHeader bmphdr(params.samplesPerLine/3,args.imgargs.lines);
+            // bmphdr.writeHeader(file);
+            // cam.startCapture();
+            // for(int line = 0;line < args.imgargs.lines;line++){
+            //     cam.captureFrame(1,file,period,true,true); // Needs bgr, reverse and inverted offset
+            //     cam.moveLines(params.moveLines);
+            // }
+            // cam.endCapture();
+
+            // Test with offset correction
+            std::ofstream file(args.imgargs.output, std::ios::out | std::ios::binary);
+            std::ostream_iterator<ccdpixel> file_it(file);
+            //file.open(args.imgargs.output, std::ios::out | std::ios::app | std::ios::binary);
+
+            bmp::BitmapHeader bmphdr(params.samplesPerLine/3,args.imgargs.lines);
+            bmphdr.writeHeader(file);
+            cam.startCapture();
+            for(int line = 0;line < args.imgargs.lines;line++){
+                std::vector<ccdpixel> linedata = cam.captureLine();
+                //cam.moveLines(params.moveLines);
+                std::copy(linedata.rbegin(),linedata.rend(),file_it); // Write line in reverse for BMP
+            }
+            cam.endCapture();
+            file.close();
         }
-
-        //getchar();
-        fclose(fptr);
-        cam.endCapture();
+        std::cout << "Captured lines: "<< args.imgargs.lines << std::endl;
 
     }
 

@@ -274,7 +274,7 @@ Read a lot of data and set TG pulse after each linelength interval
 */
 int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,int linelength){
     int pos = 0;
-    printf("Reading frames %d tg each %d\n",samples,linelength);
+    //printf("Reading frames %d tg each %d\n",samples,linelength);
     //pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
 
     //pio_sm_restart(sm_data->pio,sm_data->sm);

@@ -5,6 +5,10 @@
 #include <vector>
 #include <tuple>
 #include <array>
+#include <span>
+
+#define FRAMEDATAOFFSET 1
+#define SAMPLESPERBUFFER 3
 
 enum class CCD_Resolution : unsigned int{
     Full=0,
@@ -20,7 +24,8 @@ struct CCD_Parameters{
     uint32_t samplesPerLine = 122400;
     uint32_t bytesPerColor = 1;
     uint32_t moveLines = 1;
-    uint32_t colorOffset = 10; // In pixels. TODO higher resolutions
+    uint32_t lineBuffers = 0;
+    std::vector<int> lineOffsets;
 };
 
 #ifndef DUMMY
@@ -40,13 +45,14 @@ extern "C" {
 typedef uint8_t ccdpixel;
 
 // TODO REMOVE
-class CCDPixel{
-public:
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    CCDPixel(uint8_t r,uint8_t g, uint8_t b) : r(r),g(g),b(b){}
-};
+// class CCDPixel{
+// public:
+//     uint8_t r;
+//     uint8_t g;
+//     uint8_t b;
+//     CCDPixel(uint8_t r,uint8_t g, uint8_t b) : r(r),g(g),b(b){}
+// };
+
 
 class CCD_ImageCorrection{
 public:
@@ -54,15 +60,19 @@ public:
     ~CCD_ImageCorrection();
 
     void offsetLine(uint32_t start,uint32_t stride,int offset);
-    void addLine(const std::vector<ccdpixel> &line);
+    void addLine(const std::vector<ccdpixel> line);
+    void addLineBuf(const uint32_t* line, uint32_t len);
     std::vector<ccdpixel> getLine(int bufferoffset);
-    uint32_t incrementLine();
+    int32_t incrementLine();
+
+    //static uint32_t getOffsetForLine(CCD_Resolution res,uint32_t line);
+
 
 private:
-    uint32_t getIdxOffset(int offset);
-    uint32_t linelength;
-    uint32_t bufferlength;
-    uint32_t curIdx = 0; // Index wraps buffer
+    int32_t getIdxOffset(int offset);
+    int32_t linelength;
+    int32_t bufferlength;
+    int32_t curIdx = 0; // Index wraps buffer
     std::vector<std::vector<ccdpixel>> buf;
 };
 
@@ -79,8 +89,7 @@ public:
     void endCapture();
 
     void captureFrame(uint32_t lines,std::string& filename,uint32_t tgperiod);
-    void captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod);
-    std::vector<CCDPixel> decodeData(uint32_t* buf,uint32_t len);
+    void captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod,bool bgr=false,bool reverse = false);
 
     void captureData(uint32_t* buffer,uint32_t length,uint32_t tgperiod);
 
@@ -91,6 +100,8 @@ public:
 
     static CCD_Parameters getParamsFromResolution(CCD_Resolution res);
 
+    static void copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset=FRAMEDATAOFFSET,bool bgr = false,bool reverse = false);
+
 
     void setResolution(CCD_Resolution res);
     void setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain);
@@ -98,24 +109,31 @@ public:
 
     bool rawmode = true;
 
-    const float moveAccel = 50;
-    const float moveSpeed = 500;
-    const float lineDistMM = 0.00125; // Pixel size (4-4.5um?)
+    static constexpr float moveAccel = 50;
+    static constexpr float moveSpeed = 300;
+    static constexpr float lineDistMM = 0.00115; // 0.00125? // Pixel size (4-4.5um?)
 
-    const int colorLineDistShift = 24;
-    const int subLineDistShift = 2;
-    const int mainLineDistShift = 12;
+    static constexpr int colorLineDistShift = 20*4; // 24*4?
+    static constexpr int subLineDistShift = 2*4;
+    static constexpr int mainLineDistShift = 12*4;
 
-    const float mainLineDistMM = lineDistMM*12; // 12 lines
-    const float subLineDistMM = lineDistMM*2; // 2 lines
-    const float colorLineDistMM = lineDistMM*24; // 2 main lines
+    static constexpr float mainLineDistMM = lineDistMM*12; // 12 lines
+    static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
+    static constexpr float colorLineDistMM = lineDistMM*24; // 2 main lines
 
 
-    const std::array<int,12> lineshiftsFullres = {colorLineDistShift*2,colorLineDistShift,0,
+    //Execute line shifts for every line
+    static constexpr const std::array<int,12> lineshiftsFullres = {colorLineDistShift*2,colorLineDistShift,0,
                                                    colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
                                                    colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
                                                    colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
     };
+    static constexpr const std::array<int,6> lineshiftsHalfres = {colorLineDistShift*2,colorLineDistShift,0,
+        colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift
+     };
+
+    // Tested and working!
+    static constexpr const std::array<int,3> lineshiftsQuarterres = {colorLineDistShift*2,colorLineDistShift,0};
 
 protected:
 #ifndef DUMMY

@@ -44,10 +44,10 @@ loopstart:
     ;push block side 1  ; Fill buffer
     jmp x-- loopstart side 0 
 
-wait 0 pin 8 side 0
-wait 1 pin 8 side 1
+wait 0 pin 8 side 0 [0]
+wait 1 pin 8 side 1 [5]
 set pins 9 side 1 [0]
-wait 0 pin 8 side 0
+wait 0 pin 8 side 0 [5]
 set pins 0 side 0 [0]
 
 .wrap_target

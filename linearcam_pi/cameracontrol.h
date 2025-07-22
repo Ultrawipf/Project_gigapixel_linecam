@@ -7,6 +7,7 @@
 #else
 #include "wiringpi_dummy/wiringPi.h"
 #endif
+#include <memory>
 
 class Motors
 {
@@ -35,7 +36,7 @@ public:
     void startCapture();
     //void endCapture();
     //std::vector<std::tuple<uint16_t,uint16_t,uint16_t>> captureLine(); // Should return last valid line or use a callback
-    std::vector<CCDPixel> captureLine(); // Should return last valid line or use a callback
+    std::vector<ccdpixel> captureLine(); // Should return last valid line or use a callback
     void moveLines(float lines);
 
     //uint32_t setResolution(CCD_Resolution res);
@@ -44,6 +45,7 @@ public:
     const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
     const float imageEndPosMM = 85; // End of valid image area
 
+    std::unique_ptr<CCD_ImageCorrection> imageCorrection;
 
 protected:
     //CCD_Ctrl ccd;

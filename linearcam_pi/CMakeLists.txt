@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(linearcam_pi LANGUAGES CXX C)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #if(DUMMY)
@@ -46,6 +46,7 @@ add_library(linearcam_pi_lib
     cameracontrol.h cameracontrol.cpp
     ccd_ctrl.cpp ccd_ctrl.h
     ccd_constants.h
+    bitmap.hpp
     ${CCD_SOURCES} ${CCD_HEADERS_PUBLIC}
 )
 
