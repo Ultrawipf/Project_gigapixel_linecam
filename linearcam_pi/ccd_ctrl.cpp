@@ -158,68 +158,74 @@ void CCD_Ctrl::setResolution(CCD_Resolution res){
 
 CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
     std::vector<int> lineOffsets;
+    uint32_t maxShift = 0;
     switch(res){
     case CCD_Resolution::Full: // Main+Sub x2
         lineOffsets.assign(lineshiftsFullres.begin(),lineshiftsFullres.end());
+        maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 333,
             .validPixelEnd = 40800,
             .samplesPerLine = 130548,
             .bytesPerColor = 1,
             .moveLines = 1,
-            .lineBuffers = 193,
+            .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets,
         };
         break;
     case CCD_Resolution::Div2: // Main+Sub x1
         lineOffsets.assign(lineshiftsHalfres.begin(),lineshiftsHalfres.end());
         std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 2;});
+        maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 333,
             .validPixelEnd = 40800/2,
             .samplesPerLine = 65280,
             .bytesPerColor = 1,
             .moveLines = 2,
-            .lineBuffers = 97,
+            .lineBuffers = maxShift+1,
             .lineOffsets=lineOffsets, // /2
         };
         break;
     case CCD_Resolution::Div4: // Main only
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
         std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 4;});
+        maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 333,
             .validPixelEnd = 40800/4,
             .samplesPerLine = 32640,
             .bytesPerColor = 1,
             .moveLines = 4,
-            .lineBuffers = colorLineDistShift*2+1,
+            .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets // /4
         };
         break;
     case CCD_Resolution::Div8: // Main w. skip
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
         std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 8;});
+        maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 333,
             .validPixelEnd = 40800/8,
             .samplesPerLine = 18000,
             .bytesPerColor = 1,
             .moveLines = 8,
-            .lineBuffers = colorLineDistShift+1,
+            .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets // /8
         };
         break;
     case CCD_Resolution::Div16: // Mainw. skip
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
         std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 16;});
+        maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 333,
             .validPixelEnd = 40800/16,
-            .samplesPerLine = 9000,
+            .samplesPerLine = 12000, // 12000 ok
             .bytesPerColor = 1,
             .moveLines = 16,
-            .lineBuffers = colorLineDistShift/2 +1,
+            .lineBuffers = maxShift +2,
             .lineOffsets = lineOffsets // /16
         };
         break;

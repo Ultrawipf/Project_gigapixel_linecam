@@ -9,6 +9,8 @@
 #endif
 #include <memory>
 
+#include <thread>
+
 class Motors
 {
 public:
@@ -34,7 +36,7 @@ public:
     LinearCamCtrl(Motors& motors);
     ~LinearCamCtrl();
     void startCapture();
-    //void endCapture();
+    void endCapture();
     //std::vector<std::tuple<uint16_t,uint16_t,uint16_t>> captureLine(); // Should return last valid line or use a callback
     std::vector<ccdpixel> captureLine(); // Should return last valid line or use a callback
     void moveLines(float lines);
@@ -48,8 +50,10 @@ public:
     std::unique_ptr<CCD_ImageCorrection> imageCorrection;
 
 protected:
+    void runOffsetLines();
     //CCD_Ctrl ccd;
     Motors& motors;
+    std::thread processThread;
 };
 
 #endif // CAMERACONTROL_H

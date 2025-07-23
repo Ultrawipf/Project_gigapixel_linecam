@@ -192,9 +192,12 @@ int main(int argc, char* argv[]) {
             std::ofstream file(args.imgargs.output, std::ios::out | std::ios::binary);
             std::ostream_iterator<ccdpixel> file_it(file);
             //file.open(args.imgargs.output, std::ios::out | std::ios::app | std::ios::binary);
-
+            std::cout << "Expected image size:" << params.samplesPerLine/3 << "x" << args.imgargs.lines << std::endl;
             bmp::BitmapHeader bmphdr(params.samplesPerLine/3,args.imgargs.lines);
             bmphdr.writeHeader(file);
+            if(bmphdr.header.size_image == 0){
+                std::cout << "WARNING: Bitmap header size set to 0 due to large size" << std::endl;
+            }
             cam.startCapture();
             for(int line = 0;line < args.imgargs.lines;line++){
                 std::vector<ccdpixel> linedata = cam.captureLine();

@@ -36,15 +36,15 @@ static_assert(sizeof(BitmapHeader_s) == 54, "Bitmap header size must be 54 bytes
 
 class BitmapHeader{
 public:
-    BitmapHeader(int64_t width,int64_t height,uint32_t bpp = 24)
+    BitmapHeader(int32_t width,int32_t height,uint32_t bpp = 24)
     {
-        if(width*4*(height+1) > 0x7ffffff){
-            width = 0;
-            height = 0;
-        } // Ignore header, write rest anyways
         header.height = height;
         header.width = width;
-        header.size_image = (width*height)* (bpp/8);
+        if(width*4ll*(height+1) >= 0xffffffff){
+            header.size_image = 0; // Ignore header, write rest anyways
+        }else{
+            header.size_image = (width*height)* (bpp/8);
+        }
         header.bits_per_pixel = bpp;
         header.file_size = 54 + header.size_image;
     };
@@ -57,10 +57,8 @@ public:
         fwrite((char *) &header, 54,1,f);
     }
 
+BitmapHeader_s header;
 
-
-private:
-    BitmapHeader_s header;
 
 };
 

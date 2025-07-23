@@ -63,7 +63,7 @@ LinearCamCtrl::~LinearCamCtrl(){
 
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
-    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms16);
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms32);
     this->imageCorrection = std::make_unique<CCD_ImageCorrection>(curParams.samplesPerLine,curParams.lineBuffers);
 
     CCD_Ctrl::startCapture();
@@ -72,24 +72,39 @@ void LinearCamCtrl::startCapture(){
 
 }
 
+void LinearCamCtrl::endCapture(){
+    CCD_Ctrl::endCapture();
+    if(processThread.joinable()){
+        processThread.join();
+    }
+}
+
 // Returns last valid line
 std::vector<ccdpixel> LinearCamCtrl::captureLine(){
-    moveLines(curParams.moveLines);
+    // moveLines(curParams.moveLines); // Move
     uint32_t linelength = curParams.samplesPerLine; // Data to buffer.
     uint32_t tgperiod = linelength / 3;
     uint32_t buf[tgperiod];
     //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
-    captureData(buf,tgperiod,tgperiod); // capture one line of raw data
-    imageCorrection->addLineBuf(buf,tgperiod);
-    // Do offsets
-    uint32_t stride = curParams.lineOffsets.size();
+    processThread = std::thread([&](){
+        captureData(buf,tgperiod,tgperiod); // capture one line of raw data
+    });
+    moveLines(curParams.moveLines); // Move while capture? faster?
+
+    uint32_t stride = curParams.lineOffsets.size(); // Offset previous sample
     for(int i = 0;i<stride;i++){
         imageCorrection->offsetLine(i,stride,-curParams.lineOffsets[i]);
     }
 
-    //std::cout << "Captured "<< std::endl;
+    processThread.join(); // Join capture
+
+    // Maybe add delay to increase exposure time...
+
     std::vector<ccdpixel> line = imageCorrection->getLine(1); // Get last line in buffer;
-    imageCorrection->incrementLine(); // Shift current pointer
+
+    int32_t nextline = imageCorrection->incrementLine(); // Shift current pointer
+    //std::cout << "Nextline " << nextline << std::endl;
+    imageCorrection->addLineBuf(buf,tgperiod); // Add to next line buffer
     return line;
 }
 

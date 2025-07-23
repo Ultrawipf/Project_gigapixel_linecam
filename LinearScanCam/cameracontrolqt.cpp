@@ -35,8 +35,10 @@ bool CameraControllerQt::init(){
     }
     // Enable reset pin
     pinctrl.setEnablePin(true);
+    emit motorStatus("STARTING");
+    emit ccdStatus("STARTING");
     QFuture<void> motorfuture = slideMotorQt.home();
-
+    emit motorStatus("HOMING");
     if(ccd){ // Init CCD while motor homes
         ccd->setClock(true);
         QFuture<bool> ccdfuture = ccd->init();
@@ -45,10 +47,12 @@ bool CameraControllerQt::init(){
             qDebug() << "CCD init failed";
             flag = false;
             ccd->setClock(false); // Disable clock if failed
+            emit ccdStatus("FAILED");
         }
+        emit ccdStatus("OK");
     }
     motorfuture.waitForFinished();
-
+    emit motorStatus("OK");
     emit ready(flag);
     return flag;
 }
@@ -125,6 +129,10 @@ QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
     watcher->setFuture(future);
     return future;
 }
+QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel){
+    return moveMM(mm - motor->getActualPos(),speed,accel);
+}
+
 
 /*
 void MotorControlQt::moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel){

@@ -154,7 +154,7 @@ public:
     bool invdir = false;
     bool verbose = false;
 
-    uint8_t homeSG = 17;
+    uint8_t homeSG = 20;
     uint32_t homeCoolstepTh = 100*8;
     float homeSpeed = 2500; // Tune these
 

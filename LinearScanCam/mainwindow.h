@@ -6,6 +6,8 @@
 #include <QPromise>
 #include "cameracontrolqt.h"
 
+#include "confstore.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -19,6 +21,10 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+    ConfStore config;
+
+    void restoreSettings(ConfStore& config);
 
 public slots:
     void setReady(bool ready);
@@ -44,7 +50,7 @@ private:
 
     QTimer progressbarHideTimer;
 
-    float curMovementSize = 10;
+    float curMovementSize = 5;
 
 };
 #endif // MAINWINDOW_H

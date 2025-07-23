@@ -7,6 +7,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include "ccd_ctrl.h"
 
+
 // Helper class to control a motor directly from Qt
 class MotorControlQt : public QObject{
     Q_OBJECT
@@ -19,7 +20,7 @@ public:
     //void homeRunner(QPromise<void> &promise);
     QFuture<void> moveMM(float mm,float speed, float accel);
     //void moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel);
-    QFuture<void> moveToMM(float pos);
+    QFuture<void> moveToMM(float pos,float speed, float accel);
     //void run(QPromise<int> &promise);
 
     int64_t homesteps = -40000;
@@ -85,6 +86,8 @@ signals:
     void ready(bool);
     void busy(bool);
     void progress(int);
+    void ccdStatus(QString);
+    void motorStatus(QString);
 };
 
 
