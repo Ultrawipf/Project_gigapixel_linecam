@@ -49,6 +49,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ctrl,&CameraControllerQt::ccdStatus,this,[=](QString t){ui->label_ccd_status_startup->setText("CCD Status: " + t);});
     connect(ctrl,&CameraControllerQt::motorStatus,this,[=](QString t){ui->label_motor_status_startup->setText("Motor Status: " + t);});
 
+    // Camera controls
+    connect(ui->pushButton_shutter,&QPushButton::clicked,this,&MainWindow::captureImage);
+
 
     restoreSettings(config);
 
@@ -64,6 +67,10 @@ MainWindow::~MainWindow()
     //delete camerathread;
 }
 
+
+void MainWindow::captureImage(){
+    qDebug() << "SHUTTRER";
+}
 
 void MainWindow::restoreSettings(ConfStore& config){
     json &c = config.config;
@@ -91,6 +98,7 @@ void MainWindow::setReady(bool ready){
         ui->label_boot1->setText("Camera ready");
         ui->radioButton_mode_debug->click();
     }
+    // ui->pushButton_shutter->setEnabled(true);
 }
 
 void MainWindow::on_radioButton_mode_debug_clicked()

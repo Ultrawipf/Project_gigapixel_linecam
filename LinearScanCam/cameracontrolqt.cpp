@@ -57,6 +57,17 @@ bool CameraControllerQt::init(){
     return flag;
 }
 
+
+// Scan an image and save to file
+void CameraControllerQt::captureImage(std::string filename,uint32_t lines,int usDelay){
+
+
+}
+
+void CameraControllerQt::abortCapture(){
+
+}
+
 // ----------------------------------------
 LinCCDQt::LinCCDQt()
 {

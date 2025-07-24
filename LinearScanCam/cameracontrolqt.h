@@ -33,6 +33,8 @@ signals:
     void idle(bool idle);
     void busy(bool busy);
 
+    void lineCaptured(std::vector<ccdpixel> line);
+
 public slots:
     void emitProgress();
     double emitPosition();
@@ -62,7 +64,7 @@ public:
 
 signals:
     void ready(bool);
-    void newLine(uint16_t * buf, uint32_t len);
+    //void newLine(uint16_t * buf, uint32_t len);
 
 public slots:
     void setClock(bool enable);
@@ -80,6 +82,15 @@ public:
 
     MotorControlQt slideMotorQt;
     LinCCDQt* ccd;
+
+
+    void captureImage(std::string filename,uint32_t lines,int usDelay);
+    void abortCapture();
+
+    const float imageStartPosMM = 25; // Begin of valid image area
+    const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
+    const float imageEndPosMM = 85; // End of valid image area
+
 
     // libcamera cam0
 signals:

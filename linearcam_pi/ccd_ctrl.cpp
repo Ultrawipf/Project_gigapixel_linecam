@@ -10,6 +10,7 @@
 #endif
 #include <iostream>
 #include <algorithm>
+#include <bit>
 
 #ifndef DUMMY
 //SM_def sm_data = {.pio = pio0,.offset = SMDEF_INVALID_VAL,.sm = SMDEF_INVALID_VAL};
@@ -41,7 +42,7 @@ CCD_Ctrl::~CCD_Ctrl()
 }
 
 void CCD_Ctrl::setupSm(){
-    setup_clock(&sm_clock,6000000.0,ACLKPIN);
+    setup_clock(&sm_clock,CCDCLOCK,ACLKPIN);
     setup_data(&sm_data,DATABASEPIN);
     pio_sm_clkdiv_restart(sm_clock.pio,sm_clock.sm);
     pio_sm_clkdiv_restart(sm_data.pio,sm_data.sm);
@@ -91,28 +92,38 @@ void CCD_Ctrl::captureFrame(uint32_t lines,std::string& filename,uint32_t tgperi
 }
 
 // Transforms raw samples into an RGB framebuffer
-void CCD_Ctrl::copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset,bool bgr,bool reverse){
+void CCD_Ctrl::copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset,bool reverse){
     int i = 0;
     int rawbufidx = 0;
     int rawbufcnt = 0;
+
+    // if(sizeof(ccdpixel) == 1){
+
+    // }else if(sizeof(ccdpixel) == 2){
+
+    // }
+    //std::cout << "Rawlen: " << rawbuflen << " linelen " << framebuflen << std::endl;
+
     if(reverse)
         rawbufidx = rawbuflen;
-    const uint32_t samplesPerBuffer = SAMPLESPERBUFFER;
+    //const uint32_t samplesPerBuffer = SAMPLESPERBUFFER;
     while(i < offset){
         framebuf[i++] = 0;
     }
     while(i < framebuflen && rawbufcnt < rawbuflen){
-        if(!bgr){ // Works for raw data
+        // Works for raw data
+        if(sizeof(ccdpixel) == 1){
             framebuf[i++] = (rawbuf[rawbufidx] & 0xff0000) >> 16;
             framebuf[i++] = (rawbuf[rawbufidx] & 0xff00) >> 8;
             framebuf[i++] = (rawbuf[rawbufidx] & 0xff);
-        }else{ // Works for bitmap when inverted, applies additional offset!
-
-            framebuf[i++] = (rawbuf[rawbufidx] & 0xff);
-            framebuf[i++] = (rawbuf[rawbufidx] & 0xff00) >> 8;
-            framebuf[i++] = (rawbuf[rawbufidx] & 0xff0000) >> 16;
-
+        }else if(sizeof(ccdpixel) == 2){
+            uint32_t rawsample = rawbuf[rawbufidx];//std::byteswap(rawbuf[rawbufidx]);
+            //std::cout << rawsample << " ";
+            framebuf[i++] = (rawsample & 0xffff0000) >> 16;
+            framebuf[i++] = (rawsample & 0xffff);
         }
+
+
         rawbufcnt++;
         if(reverse)
             rawbufidx--;
@@ -125,26 +136,23 @@ void CCD_Ctrl::copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuf
     }
 }
 
-// Writes raw image data to file
-void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod,bool bgr,bool reverse){
+// Writes raw image data to file. for raw testing
+void CCD_Ctrl::captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod,bool reverse){
     //uint32_t offset = FRAMEDATAOFFSET;
-    const uint32_t samplesPerBuffer = SAMPLESPERBUFFER;
-    int samples = tgperiod;
-    uint32_t buffer[samples] = {0};
-    ccdpixel framebuf[samples*3];
+    //const uint32_t samplesPerBuffer = SAMPLESPERBUFFER;
+    //int samples = tgperiod;
+    uint32_t buffer[tgperiod] = {0};
+    int samplelen = tgperiod * SAMPLESPERBUFFER;
+    ccdpixel framebuf[samplelen];
 
     for(uint32_t l = 0;l<lines;l++){
-        readFrames(&sm_data,buffer,tgperiod,tgperiod);
-        // fwrite((uint32_t*)buffer, 3, samples, fptr);
-        //const uint8_t zero = 0;
-        //fwrite(&zero, 1, offset, fptr);
-        // for(uint32_t i = 0;i<tgperiod;i++){
-        //     uint32_t pxl = ((buffer[i] & 0xff0000) >> 16 ) | ((buffer[i] & 0xff00)) |( (buffer[i] & 0xff) << 16); // BGR to RGB
-        //     fwrite(&pxl, samplesPerBuffer, 1, fptr);
+        //readFrames(&sm_data,buffer,tgperiod,tgperiod);
+        captureData(buffer,tgperiod,tgperiod);
+        copyRawBufferToFramebuffer(buffer,tgperiod,framebuf,samplelen,FRAMEDATAOFFSET);
+        // for(int p = 0;p<tgperiod;p++){
+        //     std::cout << framebuf[p] << " ";
         // }
-        //fwrite(&zero, 1, samplesPerBuffer-offset, fptr);
-        copyRawBufferToFramebuffer(buffer,samples,framebuf,samples*3,bgr ? 3-FRAMEDATAOFFSET : FRAMEDATAOFFSET,bgr,reverse);
-        fwrite(&framebuf, samples*3, 1, fptr);
+        fwrite(&framebuf, samplelen, sizeof(ccdpixel), fptr);
     }
     // Close the file
     
@@ -167,7 +175,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .validPixelBegin = 333,
             .validPixelEnd = 40800,
             .samplesPerLine = 130548,
-            .bytesPerColor = 1,
+
             .moveLines = 1,
             .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets,
@@ -181,7 +189,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .validPixelBegin = 333,
             .validPixelEnd = 40800/2,
             .samplesPerLine = 65280,
-            .bytesPerColor = 1,
+
             .moveLines = 2,
             .lineBuffers = maxShift+1,
             .lineOffsets=lineOffsets, // /2
@@ -195,7 +203,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .validPixelBegin = 333,
             .validPixelEnd = 40800/4,
             .samplesPerLine = 32640,
-            .bytesPerColor = 1,
+
             .moveLines = 4,
             .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets // /4
@@ -209,7 +217,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .validPixelBegin = 333,
             .validPixelEnd = 40800/8,
             .samplesPerLine = 18000,
-            .bytesPerColor = 1,
+
             .moveLines = 8,
             .lineBuffers = maxShift+1,
             .lineOffsets = lineOffsets // /8
@@ -223,7 +231,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .validPixelBegin = 333,
             .validPixelEnd = 40800/16,
             .samplesPerLine = 12000, // 12000 ok
-            .bytesPerColor = 1,
+
             .moveLines = 16,
             .lineBuffers = maxShift +2,
             .lineOffsets = lineOffsets // /16
@@ -319,7 +327,7 @@ void CCD_ImageCorrection::addLineBuf(const uint32_t* line, uint32_t len){
     //buf[curIdx].insert(buf.begin(),0,FRAMEDATAOFFSET); // Pad front bytes
     // bool bgr = true;
     // CCD_Ctrl::copyRawBufferToFramebuffer(line,len,buf[curIdx].data(),buf[curIdx].size(),bgr ? 3-FRAMEDATAOFFSET : FRAMEDATAOFFSET,bgr,true);
-    CCD_Ctrl::copyRawBufferToFramebuffer(line,len,buf[curIdx].data(),buf[curIdx].size());
+    CCD_Ctrl::copyRawBufferToFramebuffer(line,len,buf[curIdx].data(),buf[curIdx].size(),FRAMEDATAOFFSET);
 }
 
 void CCD_ImageCorrection::offsetLine(uint32_t start,uint32_t stride,int offset){

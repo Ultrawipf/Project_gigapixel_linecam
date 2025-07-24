@@ -1734,7 +1734,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton">
+        <widget class="QPushButton" name="pushButton_shutter">
          <property name="enabled">
           <bool>false</bool>
          </property>

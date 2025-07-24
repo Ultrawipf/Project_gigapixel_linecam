@@ -35,6 +35,8 @@ public slots:
     void home();
     void changeMovementSize(double v);
 
+    void captureImage();
+
 private slots:
     void on_radioButton_mode_debug_clicked();
 

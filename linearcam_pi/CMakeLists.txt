@@ -47,6 +47,7 @@ add_library(linearcam_pi_lib
     ccd_ctrl.cpp ccd_ctrl.h
     ccd_constants.h
     bitmap.hpp
+    spng.c spng.h
     ${CCD_SOURCES} ${CCD_HEADERS_PUBLIC}
 )
 
@@ -100,6 +101,11 @@ else()
     #target_link_libraries(linearcam_pi PRIVATE wiringPi)
     target_link_libraries(linearcam_pi_lib PRIVATE wiringPi)
 endif()
+
+find_package(ZLIB)
+target_link_libraries(linearcam_pi_lib PRIVATE ZLIB::ZLIB)
+target_include_directories(linearcam_pi_lib PUBLIC ${PIOINCLUDEPATH})
+
 target_link_libraries(linearcam_pi PRIVATE linearcam_pi_lib)
 
 include(GNUInstallDirs)

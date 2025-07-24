@@ -10,6 +10,11 @@
 #include <memory>
 
 #include <thread>
+#include <functional>
+
+#ifndef PNG_COMPRESSION_LEVEL
+#define PNG_COMPRESSION_LEVEL 0
+#endif
 
 class Motors
 {
@@ -38,8 +43,10 @@ public:
     void startCapture();
     void endCapture();
     //std::vector<std::tuple<uint16_t,uint16_t,uint16_t>> captureLine(); // Should return last valid line or use a callback
-    std::vector<ccdpixel> captureLine(); // Should return last valid line or use a callback
+    std::vector<ccdpixel> captureLine(int usDelay = 0); // Should return last valid line or use a callback
     void moveLines(float lines);
+
+    void captureImage(std::string filename,uint32_t lines,int usDelay=0,bool png=false,std::function<void(const std::vector<ccdpixel>&)> *lineCallback = nullptr);
 
     //uint32_t setResolution(CCD_Resolution res);
 

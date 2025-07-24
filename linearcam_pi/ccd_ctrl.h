@@ -7,8 +7,8 @@
 #include <array>
 #include <span>
 
-#define FRAMEDATAOFFSET 1
-#define SAMPLESPERBUFFER 3
+#define FRAMEDATAOFFSET 0 // 1 for 8b mode
+#define SAMPLESPERBUFFER 2 // 2 for 16b, 3 for 8b
 
 enum class CCD_Resolution : unsigned int{
     Full=0,
@@ -22,7 +22,7 @@ struct CCD_Parameters{
     uint32_t validPixelBegin = 333;
     uint32_t validPixelEnd = 44500;
     uint32_t samplesPerLine = 122400;
-    uint32_t bytesPerColor = 1;
+    //uint32_t bytesPerColor = 1;
     uint32_t moveLines = 1;
     uint32_t lineBuffers = 0;
     std::vector<int> lineOffsets;
@@ -42,7 +42,10 @@ extern "C" {
 
 #endif
 
-typedef uint8_t ccdpixel;
+typedef uint16_t ccdpixel; // uint8_t or uint16_t
+static_assert(sizeof(ccdpixel) <= 2,"ccdpixel must be 1 or 2 bytes long");
+
+
 
 // TODO REMOVE
 // class CCDPixel{
@@ -89,7 +92,7 @@ public:
     void endCapture();
 
     void captureFrame(uint32_t lines,std::string& filename,uint32_t tgperiod);
-    void captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod,bool bgr=false,bool reverse = false);
+    void captureFrame(uint32_t lines,FILE *fptr,uint32_t tgperiod,bool reverse = false);
 
     void captureData(uint32_t* buffer,uint32_t length,uint32_t tgperiod);
 
@@ -100,7 +103,7 @@ public:
 
     static CCD_Parameters getParamsFromResolution(CCD_Resolution res);
 
-    static void copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset=FRAMEDATAOFFSET,bool bgr = false,bool reverse = false);
+    static void copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset=FRAMEDATAOFFSET,bool reverse = false);
 
 
     void setResolution(CCD_Resolution res);
@@ -113,7 +116,7 @@ public:
     static constexpr float moveSpeed = 300;
     static constexpr float lineDistMM = 0.0011; // 0.00125? // Pixel size (4-4.5um?)
 
-    static constexpr int colorLineDistShift = 24*4; // Ok 24*4?
+    static constexpr int colorLineDistShift = 20*4; // Ok 24*4?. 20 for 0.0011
     static constexpr int subLineDistShift = 6; // Ok
     static constexpr int mainLineDistShift = 20; // ???
 

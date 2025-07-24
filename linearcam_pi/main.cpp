@@ -85,54 +85,6 @@ int main(int argc, char* argv[]) {
         }
     }
     if(args.imgargs.is_valid){
-        /*
-        SM_def sm_data = {.pio = pio0,.sm = SMDEF_INVALID_VAL,.offset = SMDEF_INVALID_VAL};
-        SM_def sm_clock = {.pio = pio0,.sm = SMDEF_INVALID_VAL,.offset = SMDEF_INVALID_VAL};
-
-        const uint32_t samplenum = 122400/2;
-        uint32_t buffer[samplenum];
-        memset( buffer, 0, sizeof(buffer) );
-
-        setup_clock(&sm_clock,6000000.0,ACLKPIN);
-        setup_data(&sm_data,DATABASEPIN);
-        pio_sm_clkdiv_restart(sm_clock.pio,sm_clock.sm);
-        pio_sm_clkdiv_restart(sm_data.pio,sm_data.sm);
-
-        sleep_ms(1000);
-
-
-        // First sampling 2 TG periods? 20k values?
-
-        set_clock(&sm_clock,1); // Enable clock
-        sleep_ms(100);
-        send_ctrl_data_arr(&sm_data,startcommands,sizeof(startcommands)/sizeof(uint32_t));
-        printf("State/Ping %d\n",read_ctrl_data_sm(&sm_data,0x61));
-        sleep_ms(100);
-        send_ctrl_data_arr(&sm_data,startcommands2,sizeof(startcommands2)/sizeof(uint32_t));
-        sleep_ms(100);
-        // send_ctrl_data_arr(setupCmds_600dpi,sizeof(setupCmds_600dpi)/sizeof(uint32_t));
-        // send_ctrl_data_arr(block2,sizeof(block2)/sizeof(uint32_t));
-        send_ctrl_data_arr(&sm_data,startcommands3,sizeof(startcommands3)/sizeof(uint32_t));
-        send_ctrl_data_arr(&sm_data,register_settings,sizeof(register_settings)/sizeof(uint32_t));
-        send_ctrl_data_arr(&sm_data,startcommands4,sizeof(startcommands4)/sizeof(uint32_t));
-
-        sleep_ms(100);
-        uint32_t tgperiod = set_resolution(&sm_data,CCD_Res_div8)/2; // Mainlines only
-        set_rgb_gain_ofs(&sm_data,0x7D,0x7D,0x7D,0x3D,0x32,0x38); // Test dumped gain
-        sleep_ms(100);
-
-        FILE *fptr;
-        fptr = fopen(args.imgargs.output.c_str(), "wb");
-        start_sampling(&sm_data);
-        for(int line = 0;line < args.imgargs.lines;line++){
-            memset( buffer, 0, sizeof(buffer) );
-            readFrames(&sm_data,buffer,samplenum,tgperiod);
-            fwrite(buffer, 4, samplenum, fptr);
-        }
-        stop_sampling(&sm_data);
-        fclose(fptr);
-*/
-
 
         LinearCamCtrl cam(motors);
         pinctrl.setEnablePin(false);
@@ -153,9 +105,9 @@ int main(int argc, char* argv[]) {
         cam.setResolution(res);
         CCD_Parameters params = cam.getParamsFromResolution(res);
         std::cout << "Respreset: "<< respres << " move " << params.moveLines << std::endl;
-        uint32_t period = params.samplesPerLine / 3;
+        uint32_t period = params.samplesPerLine / SAMPLESPERBUFFER;
 
-        cam.setRgbGainOfs(0x7D,0x7D,0x7D,0x38,0x32,0x38);
+        cam.setRgbGainOfs(0x7E,0x77,0x7E,0x38,0x32,0x38);
 
         if(args.imgargs.raw){
             FILE *fptr;
@@ -172,40 +124,9 @@ int main(int argc, char* argv[]) {
             fclose(fptr);
             cam.endCapture();
         }else{
-            //std::ofstream file;
-            //file.open(args.imgargs.output, ios::out | ios::app | ios::binary);
 
-            // Works saving bitmap without corrections:
-            // FILE *file;
-            // file = fopen(args.imgargs.output.c_str(), "wb");
-
-            // bmp::BitmapHeader bmphdr(params.samplesPerLine/3,args.imgargs.lines);
-            // bmphdr.writeHeader(file);
-            // cam.startCapture();
-            // for(int line = 0;line < args.imgargs.lines;line++){
-            //     cam.captureFrame(1,file,period,true,true); // Needs bgr, reverse and inverted offset
-            //     cam.moveLines(params.moveLines);
-            // }
-            // cam.endCapture();
-
-            // Test with offset correction
-            std::ofstream file(args.imgargs.output, std::ios::out | std::ios::binary);
-            std::ostream_iterator<ccdpixel> file_it(file);
-            //file.open(args.imgargs.output, std::ios::out | std::ios::app | std::ios::binary);
-            std::cout << "Expected image size:" << params.samplesPerLine/3 << "x" << args.imgargs.lines << std::endl;
-            bmp::BitmapHeader bmphdr(params.samplesPerLine/3,args.imgargs.lines);
-            bmphdr.writeHeader(file);
-            if(bmphdr.header.size_image == 0){
-                std::cout << "WARNING: Bitmap header size set to 0 due to large size" << std::endl;
-            }
-            cam.startCapture();
-            for(int line = 0;line < args.imgargs.lines;line++){
-                std::vector<ccdpixel> linedata = cam.captureLine();
-                //cam.moveLines(params.moveLines);
-                std::copy(linedata.rbegin(),linedata.rend(),file_it); // Write line in reverse for BMP
-            }
-            cam.endCapture();
-            file.close();
+            // Must set resolution and gains before
+            cam.captureImage(args.imgargs.output,args.imgargs.lines,0,true);
         }
         std::cout << "Captured lines: "<< args.imgargs.lines << std::endl;
 

@@ -13,4 +13,6 @@
 
 #define MOTORLIN_MMTOSTEPS 200.0/4.0
 
+#define PNG_COMPRESSION_LEVEL 0 // 0 or 1
+
 #endif // CONSTANTS_PI_H
