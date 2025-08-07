@@ -7,7 +7,7 @@
 #include "cameracontrol.h"
 #include "ccd_ctrl.h"
 #include "string.h"
-#include "bitmap.hpp"
+#include "imagehelpers.hpp"
 #include <fstream>
 #include <iterator>
 
@@ -15,9 +15,10 @@
 struct ImgArgs : public argparse::Args {
     bool &nomove             = flag("s,static capture", "Do not move stepper");
     uint32_t &lines        = kwarg("l,lines", "Capture l lines").set_default(1);
-    std::string &output    = arg("out,output file", "Image output or \"-\" for stdio").set_default("-");
+    std::string &output    = arg("out,output file", "Image output or \"-\" for stdio").set_default("img.png");
     unsigned int &resdiv          = kwarg("r,res", "Resolution divider. 0-4 (Div0 to Div16). Default 3 = div8").set_default(3);
     bool &raw             = flag("d,raw", "Save as raw data instead of bitmap");
+    int &mm = kwarg("m", "Move stepper distance mm").set_default(0);
 };
 
 struct StepperArgs : public argparse::Args {
@@ -85,29 +86,34 @@ int main(int argc, char* argv[]) {
         }
     }
     if(args.imgargs.is_valid){
-
-        LinearCamCtrl cam(motors);
+        CCD_Ctrl ccd;
+        LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
         sleep_ms(100);
         pinctrl.setEnablePin(true);
 
-        cam.setClock(true);
+        cam.ccd.setClock(true);
         sleep_ms(500);
-        bool inited = cam.initCCD();
+        bool inited = cam.ccd.initCCD();
         std::cout << "Init?: "<< inited << std::endl;
 
+        if(args.imgargs.mm){
+            motors.homeSlide();
+            motors.slideMotor_p->moveMM(args.imgargs.mm,cam.moveSpeed,cam.moveAccel);
+        }
 
 
+        float curPos = motors.slideMotor_p->getActualPos();
         sleep_ms(100);
-        std::cout << "State: "<< cam.readReg(0x61) << std::endl;
+        std::cout << "State: "<< cam.ccd.readReg(0x61) << std::endl;
         unsigned int respres = std::min(4u,args.imgargs.resdiv);
         CCD_Resolution res = static_cast<CCD_Resolution>(respres);
-        cam.setResolution(res);
-        CCD_Parameters params = cam.getParamsFromResolution(res);
+        cam.ccd.setResolution(res);
+        CCD_Parameters params = cam.ccd.getParamsFromResolution(res);
         std::cout << "Respreset: "<< respres << " move " << params.moveLines << std::endl;
         uint32_t period = params.samplesPerLine / SAMPLESPERBUFFER;
 
-        cam.setRgbGainOfs(0x7E,0x77,0x7E,0x38,0x32,0x38);
+        cam.ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
 
         if(args.imgargs.raw){
             FILE *fptr;
@@ -117,7 +123,7 @@ int main(int argc, char* argv[]) {
             //cam.captureFrame(args.imgargs.lines,fptr,period);
 
             for(int line = 0;line < args.imgargs.lines;line++){
-                cam.captureFrame(1,fptr,period);
+                cam.ccd.captureFrame(1,fptr,period);
                 cam.moveLines(params.moveLines);
             }
 
@@ -126,10 +132,10 @@ int main(int argc, char* argv[]) {
         }else{
 
             // Must set resolution and gains before
-            cam.captureImage(args.imgargs.output,args.imgargs.lines,0,true);
+            cam.captureImage(args.imgargs.output,args.imgargs.lines);
         }
         std::cout << "Captured lines: "<< args.imgargs.lines << std::endl;
-
+        motors.slideMotor_p->moveToMM(curPos,cam.moveSpeed,cam.moveAccel);
     }
 
     pinctrl.setEnablePin(false);

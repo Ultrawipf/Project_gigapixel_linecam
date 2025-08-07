@@ -35,32 +35,35 @@ public:
 };
 
 
-class LinearCamCtrl : public CCD_Ctrl
+class LinearCamCtrl
 {
 public:
-    LinearCamCtrl(Motors& motors);
+    LinearCamCtrl(Motors& motors,CCD_Ctrl& ccd);
     ~LinearCamCtrl();
     void startCapture();
     void endCapture();
-    //std::vector<std::tuple<uint16_t,uint16_t,uint16_t>> captureLine(); // Should return last valid line or use a callback
+
     std::vector<ccdpixel> captureLine(int usDelay = 0); // Should return last valid line or use a callback
     void moveLines(float lines);
+    void abortImageCapture();
+    void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::function<void(const std::vector<ccdpixel>&)> *lineCallback = nullptr);
 
-    void captureImage(std::string filename,uint32_t lines,int usDelay=0,bool png=false,std::function<void(const std::vector<ccdpixel>&)> *lineCallback = nullptr);
-
-    //uint32_t setResolution(CCD_Resolution res);
 
     const float imageStartPosMM = 25; // Begin of valid image area
     const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
     const float imageEndPosMM = 85; // End of valid image area
 
-    std::unique_ptr<CCD_ImageCorrection> imageCorrection;
+    static constexpr float moveAccel = 50;
+    static constexpr float moveSpeed = 350;
 
+    std::unique_ptr<CCD_ImageCorrection> imageCorrection;
+    CCD_Ctrl& ccd;
+    Motors& motors;
 protected:
     void runOffsetLines();
     //CCD_Ctrl ccd;
-    Motors& motors;
     std::thread processThread;
+    bool captureInProgress = false;
 };
 
 #endif // CAMERACONTROL_H

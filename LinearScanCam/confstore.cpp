@@ -3,7 +3,7 @@
 
 ConfStore::ConfStore(std::string file) : filename(file)
 {
-    std::cout << "Starting conf store..." << std::endl;
+    std::cout << "Starting conf store... " << file <<  std::endl;
     loadSettings(file);
     std::cout << "json: "<< config.dump() << std::endl;
 }
@@ -14,13 +14,17 @@ void ConfStore::loadSettings(std::string file){
     json c;
     c["version"] = "0.1";
 
-    c["ccd"]["rgain"] = 0x39;
+    c["ccd"]["rgain"] = 0x38;
     c["ccd"]["ggain"] = 0x32;
     c["ccd"]["bgain"] = 0x38;
-    c["ccd"]["rofs"] = 0x7D;
-    c["ccd"]["gofs"] = 0x7D;
-    c["ccd"]["bofs"] = 0x7D;
+    c["ccd"]["rofs"] = 0x7E;
+    c["ccd"]["gofs"] = 0x77;
+    c["ccd"]["bofs"] = 0x7E;
     c["ccd"]["res"] = 3;
+
+    c["imagepath"] = "/mnt/ssd/";
+    c["previewfile"] = "preview.png";
+    c["camtunefile"] = "";
 
     config = c; // Base config
 

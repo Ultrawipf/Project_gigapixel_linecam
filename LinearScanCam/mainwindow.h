@@ -25,6 +25,7 @@ public:
     ConfStore config;
 
     void restoreSettings(ConfStore& config);
+    void applyCcdParams();
 
 public slots:
     void setReady(bool ready);
@@ -36,6 +37,10 @@ public slots:
     void changeMovementSize(double v);
 
     void captureImage();
+    void capturePreviewImage();
+
+    void busyCb(bool busy);
+    void imageCaptureBusyCb(bool busy);
 
 private slots:
     void on_radioButton_mode_debug_clicked();
@@ -43,6 +48,8 @@ private slots:
     void on_radioButton_mode_preview_clicked();
 
     void on_pushButton_quit_clicked();
+
+    void on_radioButton_linearscan_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -53,6 +60,10 @@ private:
     QTimer progressbarHideTimer;
 
     float curMovementSize = 5;
+
+
+    std::string imagepath = "./";
+    std::string previewFile = "preview.png";
 
 };
 #endif // MAINWINDOW_H

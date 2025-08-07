@@ -8,7 +8,7 @@ using json = nlohmann::json;
 #include <string>
 
 #ifndef CONFFILE
-#define CONFFILE "conf.json"
+#define CONFFILE "./linearcamcamconf.json"
 #endif
 
 class ConfStore

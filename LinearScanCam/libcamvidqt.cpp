@@ -1,5 +1,8 @@
 #include "libcamvidqt.h"
 #include <QStyle>
+
+QString LibCamVidQt::camtunefile = "";
+
 LibCamVidQt::LibCamVidQt() : LibCamVidQt(nullptr)
 {}
 LibCamVidQt::LibCamVidQt(QWidget * parent)
@@ -84,7 +87,7 @@ void LibCamVidQt::start(){
     streamBuf.clear();
     qDebug() << "Starting camera";
     libcameraProc.setProcessChannelMode(QProcess::MergedChannels);
-    libcameraProc.start(CAMERACMD,CAMERAARGS);
+    libcameraProc.start(CAMERACMD,CAMERAARGS+QStringList({"--tuning-file",camtunefile}));
     running = true;
 }
 

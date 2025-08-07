@@ -8,10 +8,12 @@
 #include "cameracontrolqt.h"
 #include "confstore.h"
 
+#include <QColorSpace>
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , ctrl(new CameraControllerQt(this))
+    , ctrl(new CameraControllerQt(this,new LinCCDQt))
     , config(CONFFILE)
 {
     ui->setupUi(this);
@@ -19,6 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
     ui->frame_mode->setEnabled(false);
+    ui->groupBox_camactions->setEnabled(false);
 
     // Setup progressbar
     progressbarHideTimer.setSingleShot(true);
@@ -44,19 +47,24 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
     //connect(ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize); // Done by UI signal connection
     // Debug info
-    connect(ctrl,&CameraControllerQt::ccdStatus,this,[=](QString t){ui->label_ccdstatus_debug->setText("CCD Status: " + t);});
-    connect(ctrl,&CameraControllerQt::motorStatus,this,[=](QString t){ui->label_debug_motorstatus->setText("Motor Status: " + t);});
-    connect(ctrl,&CameraControllerQt::ccdStatus,this,[=](QString t){ui->label_ccd_status_startup->setText("CCD Status: " + t);});
-    connect(ctrl,&CameraControllerQt::motorStatus,this,[=](QString t){ui->label_motor_status_startup->setText("Motor Status: " + t);});
+    connect(ctrl,&CameraControllerQt::ccdStatus,this,[this](QString t){ui->label_ccdstatus_debug->setText("CCD Status: " + t);});
+    connect(ctrl,&CameraControllerQt::motorStatus,this,[this](QString t){ui->label_debug_motorstatus->setText("Motor Status: " + t);});
+    connect(ctrl,&CameraControllerQt::ccdStatus,this,[this](QString t){ui->label_ccd_status_startup->setText("CCD Status: " + t);});
+    connect(ctrl,&CameraControllerQt::motorStatus,this,[this](QString t){ui->label_motor_status_startup->setText("Motor Status: " + t);});
 
     // Camera controls
     connect(ui->pushButton_shutter,&QPushButton::clicked,this,&MainWindow::captureImage);
+    connect(ui->pushButton_preview,&QPushButton::clicked,this,&MainWindow::capturePreviewImage);
 
 
     restoreSettings(config);
 
     // Wait for init
     QFuture<bool> future = QtConcurrent::run(&CameraControllerQt::init,ctrl);
+
+    connect(&ctrl->slideMotorQt, &MotorControlQt::busy,this,&MainWindow::busyCb);
+
+    ui->graphicsView->setScene(new QGraphicsScene);
 }
 
 MainWindow::~MainWindow()
@@ -67,9 +75,56 @@ MainWindow::~MainWindow()
     //delete camerathread;
 }
 
+void MainWindow::busyCb(bool busy){
+    ui->centralwidget->setEnabled(!busy);
+}
+
 
 void MainWindow::captureImage(){
-    qDebug() << "SHUTTRER";
+    qDebug() << "SHUTTER";
+    ctrl->ccd->setResolution((CCD_Resolution)ui->comboBox_resolution->currentIndex());
+}
+
+void MainWindow::capturePreviewImage(){
+    qDebug() << "PREVIEW";
+    if(ui->stackedWidget->currentWidget() != ui->page_graphic){
+        on_radioButton_linearscan_clicked();
+    }
+    // Set preview parameters
+    float curpos = ctrl->slideMotorQt.getCurPos();
+    ctrl->ccd->setResolution(CCD_Resolution::Div16); // Lowest resolution
+    auto future = ctrl->captureImageFuture(previewFile,ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines);
+    //future.waitForFinished();
+    auto previewDone = [&](){
+
+        ctrl->slideMotorQt.moveToMM(curpos,500,5);
+        // Show preview
+        ui->graphicsView->scene()->clear();
+        QImage previewImg(previewFile.c_str());
+
+        QColorSpace customColor(QColorSpace::Primaries::SRgb,0.4);
+        previewImg = previewImg.convertedToColorSpace(customColor);
+        ui->graphicsView->scene()->addPixmap(QPixmap::fromImage(previewImg));
+    };
+    connect(ctrl,&CameraControllerQt::imageCaptureDone,this,previewDone,Qt::SingleShotConnection);
+
+}
+
+void MainWindow::imageCaptureBusyCb(bool busy){
+
+}
+
+void MainWindow::applyCcdParams(){
+    CCD_GainOfs ofsGains = ctrl->ccd->getCurGainOfs();
+    ofsGains.bGain = ui->spinBox_bgain->value();
+    ofsGains.gGain = ui->spinBox_ggain->value();
+    ofsGains.rGain = ui->spinBox_rgain->value();
+    json &c = config.config;
+    ofsGains.rOfs = c["ccd"]["rofs"];
+    ofsGains.gOfs = c["ccd"]["gofs"];
+    ofsGains.bOfs = c["ccd"]["bofs"];
+    ctrl->ccd->setRgbGainOfs(ofsGains);
+    //ctrl->ccd->setResolution
 }
 
 void MainWindow::restoreSettings(ConfStore& config){
@@ -79,11 +134,18 @@ void MainWindow::restoreSettings(ConfStore& config){
     ui->spinBox_ggain->setValue(c["ccd"]["ggain"]);
     ui->spinBox_rgain->setValue(c["ccd"]["rgain"]);
     ui->comboBox_resolution->setCurrentIndex(c["ccd"]["res"]);
+    applyCcdParams();
+
+    imagepath = c["imagepath"];
+    previewFile = imagepath + std::string(c["previewfile"]);
+    std::string camtunefile = c["camtunefile"];
+    LibCamVidQt::camtunefile = camtunefile.c_str();
+
 }
 
 void MainWindow::progressCb(int progress){
-
-    if(progress != 1000){
+    //qDebug() << "PROGRESS" << progress;
+    if(progress != 1.0){
         progressbarHideTimer.stop();
         ui->progressBar_scan->setVisible(true);
     }else{
@@ -148,4 +210,15 @@ void MainWindow::on_pushButton_quit_clicked()
 {
     qApp->exit();
 }
+
+
+void MainWindow::on_radioButton_linearscan_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_graphic);
+    ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,500,5);
+    ui->groupBox_camactions->setEnabled(true);
+
+
+}
+
 

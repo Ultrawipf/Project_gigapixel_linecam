@@ -5,7 +5,7 @@
 // #include <tuple>
 // #include <memory>
 #include <chrono>
-#include <bitmap.hpp>
+#include <imagehelpers.hpp>
 #include <fstream>
 #include <iterator>
 
@@ -51,76 +51,91 @@ void PinCtrl::setEnablePin(bool active){
 }
 
 
-LinearCamCtrl::LinearCamCtrl(Motors& motors)
-    : CCD_Ctrl(), motors(motors)
+LinearCamCtrl::LinearCamCtrl(Motors& motors,CCD_Ctrl& ccd)
+    : motors(motors),ccd(ccd)
 {
     /*
-    bool inited = CCD_Ctrl::initCCD();
+    bool inited = ccd.initCCD();
     std::cout << "Init?: "<< inited << std::endl;
-    std::cout << "State: "<< CCD_Ctrl::readReg(0x61) << std::endl;
+    std::cout << "State: "<< ccd.readReg(0x61) << std::endl;
     */
     motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms8);
 
 }
 
 LinearCamCtrl::~LinearCamCtrl(){
-    CCD_Ctrl::setClock(false);
+    ccd.setClock(false);
 }
 
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
     motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms32);
-    this->imageCorrection = std::make_unique<CCD_ImageCorrection>(curParams.samplesPerLine,curParams.lineBuffers);
+    this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,ccd.getCurParams().lineBuffers);
 
-    CCD_Ctrl::startCapture();
+    ccd.startCapture();
     // clear ccd
     // Clear last buffer
 
 }
 
 void LinearCamCtrl::endCapture(){
-    CCD_Ctrl::endCapture();
+    ccd.endCapture();
     std::cout << "Capture stop "<< std::endl;
     if(processThread.joinable()){
         processThread.join();
     }
 }
 
+// Can be called from a different thread if a capture process is running. Might break the saved file!
+void LinearCamCtrl::abortImageCapture(){
+    captureInProgress = false;
+}
+
 // Saves image into a file and optionally returns last line as callback argument
-void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,bool png,std::function<void(const std::vector<ccdpixel>&)> *lineCallback){
-    CCD_Parameters params = curParams;
+void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::function<void(const std::vector<ccdpixel>&)> *lineCallback){
+    CCD_Parameters params = ccd.getCurParams();
 
-    float curPos = motors.slideMotor_p->getActualPos();
-    std::cout << "Expected image size:" << params.samplesPerLine/3 << "x" << lines << std::endl;
+    //float curPos = motors.slideMotor_p->getActualPos();
+    uint32_t linewidth = params.validPixelEnd - params.validPixelBegin;
+    std::cout << "Expected image size:" << linewidth << "x" << lines << std::endl;
 
-    if(png){
+    std::string ext = filename.substr(filename.find_last_of(".") + 1);
+
+    if(ext == "png"){
 
         std::cout << "Save as PNG" << std::endl;
-        struct spng_ihdr ihdr = {0}; /* zero-initialize to set valid defaults */
-        /* Creating an encoder context requires a flag */
-        FILE* file = fopen(filename.c_str(),"wb");
-        spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
-        spng_set_png_file(ctx, file);
 
-        ihdr.width = params.samplesPerLine/3;
-        ihdr.height = lines-params.lineBuffers;
-        ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR; // Truecolor 16b
-        ihdr.bit_depth = 16;
-        uint64_t imgsize = ihdr.width * ihdr.height;
-        spng_set_ihdr(ctx, &ihdr);
-        spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,PNG_COMPRESSION_LEVEL);
-        spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
-        spng_phys phys = {52638,52638,1};
-        spng_set_phys(ctx,&phys);
-        spng_set_srgb(ctx,0);
-        spng_set_gama(ctx,0.4);
-        spng_encode_chunks(ctx);
-        spng_encode_image(ctx, 0, imgsize, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
+        /* Creating an encoder context requires a flag */
+        FILE* pngfile = fopen(filename.c_str(),"wb");
+        spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
+        spng_set_png_file(ctx, pngfile);
+
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers,16,1.0);
+
+        // TODO small preview image?
+        uint32_t previewPixelSkip = (params.samplesPerLine / 15000) + 1; // Preview should result in a skip of 1, others higher
+        // PNG Header
+        // struct spng_ihdr ihdr = {.width = params.samplesPerLine/3,.height=lines-params.lineBuffers,.bit_depth=16,.color_type = SPNG_COLOR_TYPE_TRUECOLOR,.compression_method=0,.filter_method=0,.interlace_method=0}; /* zero-initialize to set valid defaults */
+        // // ihdr.width = params.samplesPerLine/3;
+        // // ihdr.height = lines-params.lineBuffers;
+        // // ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR; // Truecolor 16b
+        // // ihdr.bit_depth = 16;
+        // // //uint64_t imgsize = ihdr.width * ihdr.height;
+        // spng_set_ihdr(ctx, &ihdr);
+        // spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,PNG_COMPRESSION_LEVEL);
+        // spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
+        // spng_phys phys = {52638,52638,1};
+        // spng_set_phys(ctx,&phys);
+        // //spng_set_srgb(ctx,0); // Gamma ignored if set
+        // spng_set_gama(ctx,1.0); // Set gamma for preview
+        // spng_encode_chunks(ctx);
+        // // PNG header end
+        // spng_encode_image(ctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
 
         std::thread pngthread;
         startCapture();
-
-        for(int line = 0;line < lines;line++){
+        captureInProgress = true;
+        for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay);
             if(line < params.lineBuffers){
                 continue; // Ignore first lines
@@ -140,8 +155,8 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         pngthread.join();
 
         spng_ctx_free(ctx);
-
-        fclose(file);
+        fclose(pngfile);
+        captureInProgress = false;
     }else{
         // BMP
         // Bitmap?
@@ -155,8 +170,8 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         }
 
         startCapture();
-
-        for(int line = 0;line < lines;line++){
+        captureInProgress = true;
+        for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay);
             if(lineCallback){
                 (*lineCallback)(linedata);
@@ -177,26 +192,27 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             }
         }
         file.close();
+        captureInProgress = false;
     }
 
-    motors.slideMotor_p->moveToMM(curPos,moveSpeed,moveAccel);
+    //motors.slideMotor_p->moveToMM(curPos,moveSpeed,moveAccel);
 }
 
 // Returns last valid line
 std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
-    // moveLines(curParams.moveLines); // Move
-    uint32_t linelength = curParams.samplesPerLine; // Data to buffer.
+    CCD_Parameters params = ccd.getCurParams();
+    uint32_t linelength = params.samplesPerLine; // Data to buffer.
     uint32_t tgperiod = linelength / SAMPLESPERBUFFER;
     uint32_t buf[tgperiod]; // Number of samples per line
     //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
     processThread = std::thread([&](){
-        captureData(buf,tgperiod,tgperiod); // capture one line of raw data
+        ccd.captureData(buf,tgperiod,tgperiod); // capture one line of raw data
     });
-    moveLines(curParams.moveLines); // Move while capture? faster?
+    moveLines(params.moveLines); // Move while capture? faster?
 
-    uint32_t stride = curParams.lineOffsets.size(); // Offset previous sample
+    uint32_t stride = params.lineOffsets.size(); // Offset previous sample
     for(int i = 0;i<stride;i++){
-        imageCorrection->offsetLine(i,stride,-curParams.lineOffsets[i]);
+        imageCorrection->offsetLine(i,stride,-params.lineOffsets[i]);
     }
 
     processThread.join(); // Join capture
@@ -214,9 +230,10 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
     int32_t nextline = imageCorrection->incrementLine(); // Shift current pointer
     //std::cout << "Nextline " << nextline << std::endl;
     imageCorrection->addLineBuf(buf,tgperiod); // Add to next line buffer
-    return line;
+    return std::vector<ccdpixel>(line.begin() + params.validPixelBegin*3,line.begin() + params.validPixelEnd*3);
 }
 
 void LinearCamCtrl::moveLines(float lines){
-    motors.slideMotor.moveMM(lineDistMM*lines,moveSpeed,moveAccel);
+    //std::cout << "Movelines " << lines << " dist " << ccd.lineDistMM << std::endl;
+    motors.slideMotor.moveMM(ccd.lineDistMM*lines,moveSpeed,moveAccel);
 }

@@ -7,6 +7,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include "ccd_ctrl.h"
 
+#define MAXPROGRESS 1000.0f
 
 // Helper class to control a motor directly from Qt
 class MotorControlQt : public QObject{
@@ -22,6 +23,7 @@ public:
     //void moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel);
     QFuture<void> moveToMM(float pos,float speed, float accel);
     //void run(QPromise<int> &promise);
+    float getCurPos();
 
     int64_t homesteps = -40000;
     int homePre = 1000;
@@ -50,9 +52,6 @@ protected:
 
     double startpos;
     double targetpos;
-
-    const float MAXPROGRESS = 1000.0f;
-
 };
 
 class LinCCDQt : public QObject, public CCD_Ctrl{
@@ -72,10 +71,10 @@ public slots:
 };
 
 // Main control class
-class CameraControllerQt : public QObject{
+class CameraControllerQt : public QObject, public LinearCamCtrl{
     Q_OBJECT
 public:
-    CameraControllerQt(QObject *parent);
+    CameraControllerQt(QObject *parent,LinCCDQt *ccd);
     virtual ~CameraControllerQt();
 
     bool init();
@@ -84,21 +83,28 @@ public:
     LinCCDQt* ccd;
 
 
-    void captureImage(std::string filename,uint32_t lines,int usDelay);
+    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0);
     void abortCapture();
 
-    const float imageStartPosMM = 25; // Begin of valid image area
+    const float imageStartPosMM = 15; // Begin of valid image area
     const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
     const float imageEndPosMM = 85; // End of valid image area
-
+    const int fullResLines = 70000; // Begin of valid image area
+    bool captureInProgress = false;
 
     // libcamera cam0
+    //void captureCallback(const std::vector<ccdpixel>& line);
 signals:
     void ready(bool);
     void busy(bool);
+    void imageCaptureDone();
     void progress(int);
     void ccdStatus(QString);
     void motorStatus(QString);
+
+private:
+    uint32_t curLineNum = 0;
+    uint32_t curLines = 0;
 };
 
 

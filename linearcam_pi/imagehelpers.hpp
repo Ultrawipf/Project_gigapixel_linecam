@@ -1,9 +1,11 @@
-#ifndef BITMAP_HPP
-#define BITMAP_HPP
+#ifndef IMAGEHELPERS_H
+#define IMAGEHELPERS_H
 #include <fstream>    // std::*fstream
 #include <memory>     // std::unique_ptr
 #include <vector>
 #include <cstdio>
+
+#include <spng.h>
 
 namespace bmp {
 
@@ -64,5 +66,22 @@ BitmapHeader_s header;
 
 }
 
+namespace png {
 
-#endif // BITMAP_HPP
+static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32_t height, uint8_t bits = 16,float gamma = 1.0){
+
+    struct spng_ihdr ihdr = {.width =width,.height=height,.bit_depth=bits,.color_type = SPNG_COLOR_TYPE_TRUECOLOR,.compression_method=0,.filter_method=0,.interlace_method=0}; /* zero-initialize to set valid defaults */
+    spng_set_ihdr(ctx, &ihdr);
+    spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,PNG_COMPRESSION_LEVEL);
+    spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
+    spng_phys phys = {52638,52638,1};
+    spng_set_phys(ctx,&phys);
+    //spng_set_srgb(ctx,0); // Gamma ignored if set
+    spng_set_gama(ctx,gamma); // Set gamma for preview
+    spng_encode_chunks(ctx);
+    spng_encode_image(ctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
+
+}
+
+}
+#endif // IMAGEHELPERS_H

@@ -3,19 +3,20 @@
 #include <iostream>
 #include <QFutureWatcher>
 #include "cameracontrol.h"
+#include <spng.h>
+#include <imagehelpers.hpp>
 
 #ifndef DUMMY
 #include "ccd_ctrl.h"
 #endif
-Motors motors; // Contains the motor drivers
+Motors motordrivers; // Contains the motor drivers
 PinCtrl pinctrl;
 
-CameraControllerQt::CameraControllerQt(QObject *parent) :
+CameraControllerQt::CameraControllerQt(QObject *parent,LinCCDQt *ccd) :
     QObject(parent),
-    slideMotorQt(MotorControlQt(motors.slideMotor_p))
-#ifndef DUMMY
-   ,ccd(new LinCCDQt)
-#endif
+    slideMotorQt(MotorControlQt(motordrivers.slideMotor_p)),
+    LinearCamCtrl(motordrivers,*static_cast<CCD_Ctrl*>(ccd)),
+    ccd(ccd)
 {
     connect(&slideMotorQt, &MotorControlQt::progress,this,&CameraControllerQt::progress);
 }
@@ -24,6 +25,10 @@ CameraControllerQt::~CameraControllerQt()
 {
     delete ccd;
 }
+
+auto callbackfunc = [](const std::vector<ccdpixel>& line){
+    qDebug() << "Got line with len: " << line.size();
+};
 
 bool CameraControllerQt::init(){
     // Home motor
@@ -58,14 +63,47 @@ bool CameraControllerQt::init(){
 }
 
 
+// void CameraControllerQt::captureCallback(const std::vector<ccdpixel>& line){
+//     int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
+//     qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
+//     curLineNum++;
+
+//     emit this->progress(progressval);
+// }
 // Scan an image and save to file
-void CameraControllerQt::captureImage(std::string filename,uint32_t lines,int usDelay){
+// TODO: Also return lines for a preview image
+QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int skip){
+    curLineNum = 0;
+    curLines = lines;
+    static std::function<void(const std::vector<ccdpixel>&)>callback{ [&,this](const std::vector<ccdpixel>& line){
+        int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
+        //qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
+        curLineNum++;
+
+        emit this->progress(progressval);
+    }
+    };
+    qDebug() << "Capture image to file: "<< filename.c_str() << " lines " << lines;
+    // emit busy(true);
+
+    QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
+    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
+    // Connect start and end functions
+    connect(watcher,&QFutureWatcher<void>::started,[this](){emit busy(true);});
+    connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
+    // Start task
+    QFuture<void> future = QtConcurrent::run(&LinearCamCtrl::captureImage,this,filename,lines,skip,&callback);
+    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
+    watcher->setFuture(future);
 
 
+    //LinearCamCtrl::captureImage(filename,lines,usDelay);
+    //emit busy(false);
+    return future;
 }
 
 void CameraControllerQt::abortCapture(){
-
+    LinearCamCtrl::abortImageCapture();
 }
 
 // ----------------------------------------
@@ -141,9 +179,13 @@ QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
     return future;
 }
 QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel){
+    //std::cout << "Moving to mm QT "<< mm << std::endl;
     return moveMM(mm - motor->getActualPos(),speed,accel);
 }
 
+float MotorControlQt::getCurPos(){
+    return motor->getActualPos();
+}
 
 /*
 void MotorControlQt::moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel){

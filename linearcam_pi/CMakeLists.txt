@@ -46,7 +46,7 @@ add_library(linearcam_pi_lib
     cameracontrol.h cameracontrol.cpp
     ccd_ctrl.cpp ccd_ctrl.h
     ccd_constants.h
-    bitmap.hpp
+    imagehelpers.hpp
     spng.c spng.h
     ${CCD_SOURCES} ${CCD_HEADERS_PUBLIC}
 )
@@ -90,10 +90,6 @@ else()
 
         #target_link_libraries(linearcam_pi PRIVATE pio)
         #target_link_libraries(linearcam_pi_lib PRIVATE pio)
-
-
-
-
         #include_directories(/home/pi/git/utils/piolib/include/)
 
     endif()

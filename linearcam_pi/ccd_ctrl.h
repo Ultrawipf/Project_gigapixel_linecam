@@ -28,6 +28,15 @@ struct CCD_Parameters{
     std::vector<int> lineOffsets;
 };
 
+struct CCD_GainOfs{
+    uint8_t rOfs=0x80;
+    uint8_t gOfs=0x80;
+    uint8_t bOfs=0x80;
+    uint8_t rGain=0x07;
+    uint8_t gGain=0x07;
+    uint8_t bGain=0x07;
+};
+
 #ifndef DUMMY
 #ifdef __cplusplus
 extern "C" {
@@ -107,13 +116,15 @@ public:
 
 
     void setResolution(CCD_Resolution res);
-    void setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain);
+    //void setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain);
+    void setRgbGainOfs(CCD_GainOfs ccdGainOfs);
+
+    CCD_Parameters getCurParams();
+    CCD_GainOfs getCurGainOfs();
 
 
     bool rawmode = true;
 
-    static constexpr float moveAccel = 50;
-    static constexpr float moveSpeed = 300;
     static constexpr float lineDistMM = 0.0011; // 0.00125? // Pixel size (4-4.5um?)
 
     static constexpr int colorLineDistShift = 20*4; // Ok 24*4?. 20 for 0.0011
@@ -149,6 +160,7 @@ protected:
     const int totalPixels = 122400;
     CCD_Resolution curRes;
     CCD_Parameters curParams;
+    CCD_GainOfs curGainOfs;
     //uint32_t curLinelength = totalPixels;
     //uint32_t curLinedist = 4;
 };

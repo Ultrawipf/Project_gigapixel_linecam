@@ -23,6 +23,8 @@ public:
     void resizeEvent(QResizeEvent  *event) override;
     QPixmap getCurPixmap();
 
+    static QString camtunefile;
+
 public slots:
     void processFrame();
     void errorHandler(QProcess::ProcessError error);
@@ -32,7 +34,7 @@ protected:
     QProcess libcameraProc;
     // Args for IMX219 camera
     const QStringList CAMERAARGS = {"-t","0" ,"-n","-v","0", "--inline","--framerate","30","--width","1640","--height","1232","--codec","mjpeg","-o","-"};
-    const QString CAMERACMD = "/usr/bin/libcamera-vid";
+    const QString CAMERACMD = "/usr/bin/rpicam-vid";
     QByteArray streamBuf;
     const QString IDLETEXT = "Waiting for camera...";
     bool running = false;

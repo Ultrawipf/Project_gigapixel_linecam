@@ -208,6 +208,7 @@ void TMC2209_motor::setCoolstepTh(uint32_t th){
 
 void TMC2209_motor::setMicrostep(microstep ms){
     if(!initialized){ updateConfigFromChip(); }
+    float lastStepMult = getStepMult(); // Update internal multiplier
     if(ms == microstep::pin){
         curgconf.mstep_reg = 0;
     }else{
@@ -217,6 +218,7 @@ void TMC2209_motor::setMicrostep(microstep ms){
     writeData(0x6C,curchopconf.asint);
     writeData(0x00,curgconf.asint);
     stepMult = getStepMult(); // Update internal multiplier
+    pos = pos * (stepMult / lastStepMult);
 }
 
 void TMC2209_motor::setInterpolation(bool en){
@@ -243,6 +245,7 @@ float TMC2209_motor::moveMM(float mm,float speed,float accel){
 }
 
 void TMC2209_motor::moveToMM(float mm,float speed,float accel){
+    std::cout << "Moving to mm "<< mm << std::endl;
     float dist = mm - this->getActualPos();
     moveMM(dist,speed,accel);
 }
