@@ -36,6 +36,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         resources.qrc
         libcamvidqt.h libcamvidqt.cpp
         confstore.h confstore.cpp
+        pcfioqt.h pcfioqt.cpp
+
 
     )
 # Define target properties for Android with Qt 6 as:

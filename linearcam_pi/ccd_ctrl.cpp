@@ -224,7 +224,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .lineOffsets = lineOffsets // /8
         };
         break;
-    case CCD_Resolution::Div16: // Mainw. skip
+    case CCD_Resolution::Preview: // Mainw. skip
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
         std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 16;});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());

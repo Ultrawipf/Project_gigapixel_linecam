@@ -12,13 +12,15 @@
 Motors motordrivers; // Contains the motor drivers
 PinCtrl pinctrl;
 
-CameraControllerQt::CameraControllerQt(QObject *parent,LinCCDQt *ccd) :
+CameraControllerQt::CameraControllerQt(QObject *parent,LinCCDQt *ccd,PcfIoQt *pcfio) :
     QObject(parent),
     slideMotorQt(MotorControlQt(motordrivers.slideMotor_p)),
     LinearCamCtrl(motordrivers,*static_cast<CCD_Ctrl*>(ccd)),
-    ccd(ccd)
+    ccd(ccd),
+    pcfio(pcfio)
 {
     connect(&slideMotorQt, &MotorControlQt::progress,this,&CameraControllerQt::progress);
+    pcfio->setMask(0b111);
 }
 
 CameraControllerQt::~CameraControllerQt()
@@ -87,7 +89,7 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     // emit busy(true);
 
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
+    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
     // Connect start and end functions
     connect(watcher,&QFutureWatcher<void>::started,[this](){emit busy(true);});
     connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
@@ -122,7 +124,7 @@ void LinCCDQt::setClock(bool enable){
 
 QFuture<bool> LinCCDQt::init(){
     QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>();
-    connect(watcher,&QFutureWatcher<bool>::finished,watcher,&QFutureWatcher<bool>::deleteLater);
+    connect(watcher,&QFutureWatcher<bool>::finished,watcher,&QFutureWatcher<bool>::deleteLater,Qt::SingleShotConnection);
     // Connect start and end functions
     // Start task
     QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,this);
@@ -168,10 +170,10 @@ QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
     targetpos = startpos + mm;
 
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
+    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
     // Connect start and end functions
-    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin);
-    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd);
+    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
+    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
     // Start task
     QFuture<void> future = QtConcurrent::run([this,mm,speed,accel]{this->motor->moveMM(mm,speed,accel);});
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
@@ -224,10 +226,10 @@ QFuture<void> MotorControlQt::home(){
 
     // Create future watcher
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater);
+    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
     // Connect start and end functions
-    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin);
-    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd);
+    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
+    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
     // Start task
     QFuture<void> future = QtConcurrent::run(&Motors::homeSlide);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}

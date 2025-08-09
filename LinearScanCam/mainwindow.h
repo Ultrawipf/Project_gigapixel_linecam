@@ -5,7 +5,7 @@
 
 #include <QPromise>
 #include "cameracontrolqt.h"
-
+#include "pcfioqt.h"
 #include "confstore.h"
 
 QT_BEGIN_NAMESPACE
@@ -26,6 +26,7 @@ public:
 
     void restoreSettings(ConfStore& config);
     void applyCcdParams();
+    void updateResEstimate();
 
 public slots:
     void setReady(bool ready);
@@ -41,6 +42,9 @@ public slots:
 
     void busyCb(bool busy);
     void imageCaptureBusyCb(bool busy);
+    void savePreview();
+
+    void buttonExtCb(uint8_t buttons);
 
 private slots:
     void on_radioButton_mode_debug_clicked();
@@ -50,6 +54,8 @@ private slots:
     void on_pushButton_quit_clicked();
 
     void on_radioButton_linearscan_clicked();
+
+    void on_horizontalSlider_imagewidth_valueChanged(int value);
 
 private:
     Ui::MainWindow *ui;
@@ -64,6 +70,5 @@ private:
 
     std::string imagepath = "./";
     std::string previewFile = "preview.png";
-
 };
 #endif // MAINWINDOW_H

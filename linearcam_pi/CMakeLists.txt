@@ -48,6 +48,7 @@ add_library(linearcam_pi_lib
     ccd_constants.h
     imagehelpers.hpp
     spng.c spng.h
+    pcf8574.h pcf8574.cpp
     ${CCD_SOURCES} ${CCD_HEADERS_PUBLIC}
 )
 

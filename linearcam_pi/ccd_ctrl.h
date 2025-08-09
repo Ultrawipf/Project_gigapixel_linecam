@@ -15,7 +15,7 @@ enum class CCD_Resolution : unsigned int{
     Div2=1,
     Div4=2,
     Div8=3,
-    Div16=4
+    Preview=4
 };
 
 struct CCD_Parameters{

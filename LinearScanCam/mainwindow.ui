@@ -1113,7 +1113,33 @@ QSizeGrip
       </layout>
      </widget>
     </item>
-    <item row="3" column="0">
+    <item row="1" column="2">
+     <widget class="QPushButton" name="pushButton_quit">
+      <property name="maximumSize">
+       <size>
+        <width>50</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="text">
+       <string>Quit</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0" colspan="3">
+     <widget class="QProgressBar" name="progressBar_scan">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="maximum">
+       <number>1000</number>
+      </property>
+      <property name="value">
+       <number>0</number>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0" colspan="3">
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -1128,7 +1154,7 @@ QSizeGrip
        <enum>QFrame::Raised</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="page_boot">
        <layout class="QGridLayout" name="gridLayout_4">
@@ -1224,6 +1250,28 @@ QSizeGrip
       </widget>
       <widget class="QWidget" name="page_preview">
        <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
+         <widget class="LibCamVidQt" name="label_preview">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>682</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Waiting for camera data...</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QGroupBox" name="groupBox_previewctrl">
           <property name="minimumSize">
@@ -1334,28 +1382,6 @@ QSizeGrip
           </layout>
          </widget>
         </item>
-        <item>
-         <widget class="LibCamVidQt" name="label_preview">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>1</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>682</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Waiting for camera data...</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="page_graphic">
@@ -1377,6 +1403,12 @@ QSizeGrip
         </property>
         <item row="1" column="1">
          <widget class="QSlider" name="horizontalSlider_imagewidth">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -1394,9 +1426,17 @@ QSizeGrip
           </property>
           <property name="styleSheet">
            <string notr="true">QSlider::handle:horizontal  {
-	height: 25px;
-	width: 35px;
-	border: 1px solid;
+	height: 30px;
+	width: 25px;
+}
+
+QSlider{
+	margin: 0px,0px;
+}
+
+QSlider::groove:horizontal {
+    margin: 0px 0px;
+    height: 30px;
 }</string>
           </property>
           <property name="maximum">
@@ -1479,6 +1519,258 @@ QSizeGrip
           <property name="viewportUpdateMode">
            <enum>QGraphicsView::SmartViewportUpdate</enum>
           </property>
+         </widget>
+        </item>
+        <item row="0" column="2" rowspan="2">
+         <widget class="QGroupBox" name="groupBox_camactions">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="title">
+           <string>Actions</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout">
+           <property name="leftMargin">
+            <number>3</number>
+           </property>
+           <property name="topMargin">
+            <number>3</number>
+           </property>
+           <property name="rightMargin">
+            <number>3</number>
+           </property>
+           <property name="bottomMargin">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QGroupBox" name="groupBox_gains">
+             <property name="title">
+              <string>Gains</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <item>
+               <widget class="QSpinBox" name="spinBox_bgain">
+                <property name="minimumSize">
+                 <size>
+                  <width>70</width>
+                  <height>50</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
+    width: 30
+}
+QSpinBox::up-button,QDoubleSpinBox::up-button{
+    width: 30
+}
+</string>
+                </property>
+                <property name="prefix">
+                 <string>R </string>
+                </property>
+                <property name="maximum">
+                 <number>63</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBox_rgain">
+                <property name="minimumSize">
+                 <size>
+                  <width>70</width>
+                  <height>50</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
+    width: 30
+}
+QSpinBox::up-button,QDoubleSpinBox::up-button{
+    width: 30
+}
+</string>
+                </property>
+                <property name="prefix">
+                 <string>G </string>
+                </property>
+                <property name="maximum">
+                 <number>63</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBox_ggain">
+                <property name="minimumSize">
+                 <size>
+                  <width>70</width>
+                  <height>50</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
+    width: 30
+}
+QSpinBox::up-button,QDoubleSpinBox::up-button{
+    width: 30
+}
+</string>
+                </property>
+                <property name="prefix">
+                 <string>B </string>
+                </property>
+                <property name="maximum">
+                 <number>63</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer_4">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_resolution">
+             <property name="text">
+              <string>Resolution</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_resolution">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="currentIndex">
+              <number>0</number>
+             </property>
+             <item>
+              <property name="text">
+               <string>40800px</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>21350px</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>10680px</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>5340px</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>3560px</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_preview">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>20</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Preview</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_savepreview">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>Save preview</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_shutter">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>20</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Shutter</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="spinBox">
+             <property name="minimumSize">
+              <size>
+               <width>50</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
+    width: 30
+}
+QSpinBox::up-button,QDoubleSpinBox::up-button{
+    width: 30
+}
+</string>
+             </property>
+             <property name="suffix">
+              <string>s</string>
+             </property>
+             <property name="prefix">
+              <string/>
+             </property>
+             <property name="maximum">
+              <number>120</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_2">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="text">
+              <string>Timer</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
        </layout>
@@ -1642,259 +1934,6 @@ QSizeGrip
         </item>
        </layout>
       </widget>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="QPushButton" name="pushButton_quit">
-      <property name="text">
-       <string>Quit</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="0" colspan="3">
-     <widget class="QProgressBar" name="progressBar_scan">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="maximum">
-       <number>1000</number>
-      </property>
-      <property name="value">
-       <number>0</number>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="2" rowspan="2">
-     <widget class="QGroupBox" name="groupBox_camactions">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="title">
-       <string>Actions</string>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <property name="leftMargin">
-        <number>3</number>
-       </property>
-       <property name="topMargin">
-        <number>3</number>
-       </property>
-       <property name="rightMargin">
-        <number>3</number>
-       </property>
-       <property name="bottomMargin">
-        <number>3</number>
-       </property>
-       <item>
-        <widget class="QGroupBox" name="groupBox_gains">
-         <property name="title">
-          <string>Gains</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
-          <item>
-           <widget class="QSpinBox" name="spinBox_bgain">
-            <property name="minimumSize">
-             <size>
-              <width>70</width>
-              <height>50</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
-    width: 30
-}
-QSpinBox::up-button,QDoubleSpinBox::up-button{
-    width: 30
-}
-</string>
-            </property>
-            <property name="prefix">
-             <string>R </string>
-            </property>
-            <property name="maximum">
-             <number>63</number>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="spinBox_rgain">
-            <property name="minimumSize">
-             <size>
-              <width>70</width>
-              <height>50</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
-    width: 30
-}
-QSpinBox::up-button,QDoubleSpinBox::up-button{
-    width: 30
-}
-</string>
-            </property>
-            <property name="prefix">
-             <string>G </string>
-            </property>
-            <property name="maximum">
-             <number>63</number>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="spinBox_ggain">
-            <property name="minimumSize">
-             <size>
-              <width>70</width>
-              <height>50</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
-    width: 30
-}
-QSpinBox::up-button,QDoubleSpinBox::up-button{
-    width: 30
-}
-</string>
-            </property>
-            <property name="prefix">
-             <string>B </string>
-            </property>
-            <property name="maximum">
-             <number>63</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <spacer name="verticalSpacer_4">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item>
-        <widget class="QSpinBox" name="spinBox_width">
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-         <property name="buttonSymbols">
-          <enum>QAbstractSpinBox::NoButtons</enum>
-         </property>
-         <property name="keyboardTracking">
-          <bool>false</bool>
-         </property>
-         <property name="suffix">
-          <string>px</string>
-         </property>
-         <property name="maximum">
-          <number>100000</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="label_resolution">
-         <property name="text">
-          <string>x</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignCenter</set>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QComboBox" name="comboBox_resolution">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="currentIndex">
-          <number>0</number>
-         </property>
-         <item>
-          <property name="text">
-           <string>40800px</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>21350px</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>10680px</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>5340px</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>3560px</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButton_preview">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>20</width>
-           <height>50</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Preview</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButton_shutter">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>20</width>
-           <height>50</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Shutter</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButton_2">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="text">
-          <string>3s Timer</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
      </widget>
     </item>
    </layout>

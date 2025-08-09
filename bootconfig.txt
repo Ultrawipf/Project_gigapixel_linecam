@@ -1,0 +1,9 @@
+dtparam=i2c_arm=on
+camera_auto_detect=0
+dtoverlay=vc4-kms-v3d
+#DSI1 Use
+dtoverlay=vc4-kms-dsi-waveshare-panel-v2,8_0_inch_a
+#DSI0 Use
+# dtoverlay=vc4-kms-dsi-waveshare-panel-v2,8_0_inch_a,dsi0
+enable_uart=1
+dtoverlay=imx219,cam0

@@ -6,6 +6,7 @@
 #include <QFuture>
 #include <QtConcurrent/QtConcurrent>
 #include "ccd_ctrl.h"
+#include "pcfioqt.h"
 
 #define MAXPROGRESS 1000.0f
 
@@ -74,21 +75,23 @@ public slots:
 class CameraControllerQt : public QObject, public LinearCamCtrl{
     Q_OBJECT
 public:
-    CameraControllerQt(QObject *parent,LinCCDQt *ccd);
+    CameraControllerQt(QObject *parent,LinCCDQt *ccd,PcfIoQt *pcfio);
     virtual ~CameraControllerQt();
 
     bool init();
 
     MotorControlQt slideMotorQt;
     LinCCDQt* ccd;
+    PcfIoQt* pcfio;
 
 
     QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0);
     void abortCapture();
 
     const float imageStartPosMM = 15; // Begin of valid image area
+    const float imageCenterPosMM = 52.5; // Center of valid image area
     const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
-    const float imageEndPosMM = 85; // End of valid image area
+    //const float imageEndPosMM = 85; // End of valid image area
     const int fullResLines = 70000; // Begin of valid image area
     bool captureInProgress = false;
 

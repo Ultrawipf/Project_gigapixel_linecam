@@ -35,7 +35,7 @@ void Motors::homeSlide(){
     slideMotor_p->setEnable(true);
     slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms8);
     slideMotor_p->move(1000,5000,10);
-    slideMotor_p->home(-40000);
+    slideMotor_p->home(-50000);
     slideMotor_p->setEnable(false);
 }
 
