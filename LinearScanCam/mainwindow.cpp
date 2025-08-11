@@ -11,12 +11,19 @@
 #include <memory>
 #include <QColorSpace>
 
+#include <QImageReader>
+
+QThreadPool MainWindow::pool = QThreadPool();
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , ctrl(new CameraControllerQt(this,new LinCCDQt,new PcfIoQt))
     , config(CONFFILE)
 {
+
+    QImageReader::setAllocationLimit(512);
+
     ui->setupUi(this);
     ui->progressBar_scan->setVisible(false);
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
@@ -48,8 +55,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Dist
     ui->doubleSpinBox_debug_dist->setValue(this->curMovementSize);
     ui->doubleSpinBox_preview_dist->setValue(this->curMovementSize);
-    connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
-    //connect(ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize); // Done by UI signal connection
+    //connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
+    connect(ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize); // Done by UI signal connection
     // Debug info
     connect(ctrl,&CameraControllerQt::ccdStatus,this,[this](QString t){ui->label_ccdstatus_debug->setText("CCD Status: " + t);});
     connect(ctrl,&CameraControllerQt::motorStatus,this,[this](QString t){ui->label_debug_motorstatus->setText("Motor Status: " + t);});
@@ -117,6 +124,8 @@ void MainWindow::captureImage(){
 }
 
 void MainWindow::capturePreviewImage(){
+    //static QThreadPool pool;
+    pool.setMaxThreadCount(1);
     qDebug() << "PREVIEW";
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         ui->radioButton_linearscan->click();
@@ -126,22 +135,25 @@ void MainWindow::capturePreviewImage(){
 
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     ctrl->ccd->setResolution(CCD_Resolution::Preview); // Lowest resolution
-
-    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5).waitForFinished(); // TODO run outside main thread
+    applyCcdParams(); // Set gains
+    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5,&pool); // TODO run outside main thread
     float curpos = ctrl->slideMotorQt.getCurPos();
 
-    auto future = ctrl->captureImageFuture(previewFile,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale);
+    auto future = ctrl->captureImageFuture(previewFile,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool);
     //future.waitForFinished();
     auto previewDone = [&](){
         ui->pushButton_savepreview->setEnabled(true);
-        ctrl->slideMotorQt.moveToMM(curpos,500,5);
+        ctrl->slideMotorQt.moveToMM(curpos,500,5,&pool);
         // Show preview
         ui->graphicsView->scene()->clear();
         QImage previewImg(previewFile.c_str());
-
-        QColorSpace customColor(QColorSpace::Primaries::SRgb,0.4);
-        previewImg = previewImg.convertedToColorSpace(customColor);
+        previewImg = previewImg.transformed(QTransform().rotate(90));
+        qDebug() << "BPP:" << previewImg.depth();
+        //QColorSpace customColor(QColorSpace::Primaries::SRgb,0.4);
+        //previewImg = previewImg.convertedToColorSpace(customColor);
         ui->graphicsView->scene()->addPixmap(QPixmap::fromImage(previewImg));
+        ui->progressBar_scan->setVisible(false); // Hide progress bar quickly
+        ui->graphicsView->zoomToFit();
     };
     connect(ctrl,&CameraControllerQt::imageCaptureDone,this,previewDone,Qt::SingleShotConnection);
 
@@ -153,9 +165,11 @@ void MainWindow::imageCaptureBusyCb(bool busy){
 
 void MainWindow::applyCcdParams(){
     CCD_GainOfs ofsGains = ctrl->ccd->getCurGainOfs();
-    ofsGains.bGain = ui->spinBox_bgain->value();
-    ofsGains.gGain = ui->spinBox_ggain->value();
-    ofsGains.rGain = ui->spinBox_rgain->value();
+    double scaler = ui->doubleSpinBox_commongain->value();
+    ofsGains.bGain = ui->spinBox_bgain->value() * scaler;
+    ofsGains.gGain = ui->spinBox_ggain->value() * scaler;
+    ofsGains.rGain = ui->spinBox_rgain->value() * scaler;
+
     json &c = config.config;
     ofsGains.rOfs = c["ccd"]["rofs"];
     ofsGains.gOfs = c["ccd"]["gofs"];
@@ -210,7 +224,7 @@ void MainWindow::on_radioButton_mode_preview_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_preview);
     //ui->progressBar_scan->setVisible(false);
-    ctrl->slideMotorQt.moveToMM(25,500,5);
+    ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,500,5);
 }
 
 void MainWindow::changeMovementSize(double v){

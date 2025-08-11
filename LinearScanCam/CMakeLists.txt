@@ -29,6 +29,8 @@ set(PROJECT_SOURCES
 
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+
     qt_add_executable(LinearScanCam
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
@@ -37,6 +39,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         libcamvidqt.h libcamvidqt.cpp
         confstore.h confstore.cpp
         pcfioqt.h pcfioqt.cpp
+        imageviewqt.h imageviewqt.cpp
 
 
     )
@@ -63,6 +66,7 @@ target_include_directories(LinearScanCam PRIVATE "${EXTRA_SOURCES_INC}")
 target_link_libraries(LinearScanCam PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 #add_dependencies(LinearScanCam "../linearcam_pi")
 target_link_libraries(LinearScanCam PUBLIC linearcam_pi_lib)
+target_link_libraries(LinearScanCam PRIVATE Qt6::Core Qt6::Widgets)
 
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

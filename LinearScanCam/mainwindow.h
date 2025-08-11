@@ -70,5 +70,6 @@ private:
 
     std::string imagepath = "./";
     std::string previewFile = "preview.png";
+    static QThreadPool pool;
 };
 #endif // MAINWINDOW_H

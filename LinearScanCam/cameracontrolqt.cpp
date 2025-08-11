@@ -74,7 +74,7 @@ bool CameraControllerQt::init(){
 // }
 // Scan an image and save to file
 // TODO: Also return lines for a preview image
-QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int skip){
+QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int usDelay,QThreadPool *pool){
     curLineNum = 0;
     curLines = lines;
     static std::function<void(const std::vector<ccdpixel>&)>callback{ [&,this](const std::vector<ccdpixel>& line){
@@ -94,7 +94,7 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     connect(watcher,&QFutureWatcher<void>::started,[this](){emit busy(true);});
     connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
     // Start task
-    QFuture<void> future = QtConcurrent::run(&LinearCamCtrl::captureImage,this,filename,lines,skip,&callback);
+    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,&callback);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
 
@@ -164,7 +164,7 @@ void MotorControlQt::emitProgress(){
     }
 }
 
-QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
+QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel,QThreadPool *pool){
     if(!motor) return QtFuture::makeReadyFuture();
     startpos = motor->getActualPos();
     targetpos = startpos + mm;
@@ -175,14 +175,14 @@ QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel){
     connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
     connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
     // Start task
-    QFuture<void> future = QtConcurrent::run([this,mm,speed,accel]{this->motor->moveMM(mm,speed,accel);});
+    QFuture<void> future = QtConcurrent::run(pool,[this,mm,speed,accel]{this->motor->moveMM(mm,speed,accel);});
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
     return future;
 }
-QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel){
+QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel,QThreadPool *pool){
     //std::cout << "Moving to mm QT "<< mm << std::endl;
-    return moveMM(mm - motor->getActualPos(),speed,accel);
+    return moveMM(mm - motor->getActualPos(),speed,accel,pool);
 }
 
 float MotorControlQt::getCurPos(){
@@ -218,7 +218,7 @@ void MotorControlQt::motorBegin(){
     emit busy(true);
 }
 
-QFuture<void> MotorControlQt::home(){
+QFuture<void> MotorControlQt::home(QThreadPool *pool){
     if(!motor) return QtFuture::makeReadyFuture();
 
     targetpos = 0;
@@ -231,7 +231,7 @@ QFuture<void> MotorControlQt::home(){
     connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
     connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
     // Start task
-    QFuture<void> future = QtConcurrent::run(&Motors::homeSlide);
+    QFuture<void> future = QtConcurrent::run(pool,&Motors::homeSlide);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
     return future;

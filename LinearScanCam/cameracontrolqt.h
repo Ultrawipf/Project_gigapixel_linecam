@@ -18,11 +18,11 @@ public:
     MotorControlQt(TMC2209_motor* motor);
     virtual ~MotorControlQt();
 
-    QFuture<void> home();
+    QFuture<void> home(QThreadPool *pool= QThreadPool::globalInstance());
     //void homeRunner(QPromise<void> &promise);
-    QFuture<void> moveMM(float mm,float speed, float accel);
+    QFuture<void> moveMM(float mm,float speed, float accel,QThreadPool *pool= QThreadPool::globalInstance());
     //void moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel);
-    QFuture<void> moveToMM(float pos,float speed, float accel);
+    QFuture<void> moveToMM(float pos,float speed, float accel,QThreadPool *pool= QThreadPool::globalInstance());
     //void run(QPromise<int> &promise);
     float getCurPos();
 
@@ -85,12 +85,12 @@ public:
     PcfIoQt* pcfio;
 
 
-    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0);
+    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0,QThreadPool *pool = QThreadPool::globalInstance());
     void abortCapture();
 
     const float imageStartPosMM = 15; // Begin of valid image area
     const float imageCenterPosMM = 52.5; // Center of valid image area
-    const float previewCamCenterMM = 25; // Position when preview camera is centered in lens
+    const float previewCamCenterMM = 23; // Position when preview camera is centered in lens
     //const float imageEndPosMM = 85; // End of valid image area
     const int fullResLines = 70000; // Begin of valid image area
     bool captureInProgress = false;

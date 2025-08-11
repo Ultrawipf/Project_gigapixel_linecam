@@ -226,7 +226,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         break;
     case CCD_Resolution::Preview: // Mainw. skip
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
-        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 16;});
+        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 12;});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 302,
@@ -234,7 +234,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .samplesPerLine = 12000, // 12000 ok
 
             .moveLines = 12, // Should be 16?
-            .lineBuffers = maxShift +2,
+            .lineBuffers = maxShift +1,
             .lineOffsets = lineOffsets // /16
         };
         break;

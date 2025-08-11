@@ -104,13 +104,13 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
     if(ext == "png"){
 
         std::cout << "Save as PNG" << std::endl;
-
+        const int extraskip = 3;
         /* Creating an encoder context requires a flag */
         FILE* pngfile = fopen(filename.c_str(),"wb");
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
-        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers,16,1.0);
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,1.0);
 
         // TODO small preview image?
         uint32_t previewPixelSkip = (params.samplesPerLine / 15000) + 1; // Preview should result in a skip of 1, others higher
@@ -137,7 +137,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         captureInProgress = true;
         for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay);
-            if(line < params.lineBuffers){
+            if(line < params.lineBuffers+extraskip){
                 continue; // Ignore first lines
             }
             if(lineCallback){
