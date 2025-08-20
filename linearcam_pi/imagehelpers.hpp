@@ -6,6 +6,11 @@
 #include <cstdio>
 
 #include <spng.h>
+#include <iostream>
+#include <optional>
+#include <functional>
+#include <assert.h>
+#include <cstring>
 
 namespace bmp {
 
@@ -81,6 +86,165 @@ static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32
     spng_encode_chunks(ctx);
     spng_encode_image(ctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
 
+}
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+// static int update_row_info(spng_ctx *ctx);
+// #ifdef __cplusplus
+// }
+// #endif
+
+// Reencodes a png line by line with different options. Gamma correction not possible in all modes
+static void pngReencode(FILE* infile,FILE* outfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_RGB8,bool gammacorrect = true,std::optional<std::function<void(float)>> progresscb = std::nullopt){
+    unsigned bytes_per_pixel;
+    uint8_t bits = 8;
+
+
+    int step = downsample+1;
+    //int channels = 3;
+
+    // Decoder
+
+    spng_ctx* inctx = spng_ctx_new(0);
+    spng_set_png_file(inctx,infile);
+    size_t limit = 1024 * 1024 * 64;
+    spng_set_chunk_limits(inctx, limit, limit);
+
+    int decodeflags = SPNG_DECODE_PROGRESSIVE;
+    if(gammacorrect){
+        std::cout << "Decode gamma on " << std::endl;
+        decodeflags |= (int)SPNG_DECODE_GAMMA;
+    }
+    spng_decode_image(inctx,0,0,format,decodeflags);
+
+    spng_ihdr ihdrin;
+    spng_get_ihdr(inctx,&ihdrin);
+    // spng_row_info row_info = {0};
+    // spng_get_row_info(inctx, &row_info);
+    uint32_t inlines = ihdrin.height;
+
+    uint8_t channels = 3;
+    switch(ihdrin.color_type){
+    case SPNG_COLOR_TYPE_GRAYSCALE:
+        channels = 1;
+        break;
+    case SPNG_COLOR_TYPE_INDEXED: //???
+    case SPNG_COLOR_TYPE_TRUECOLOR:
+        channels = 3;
+        break;
+
+    case SPNG_COLOR_TYPE_GRAYSCALE_ALPHA:
+        channels = 2;
+        break;
+    case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA:
+        channels = 4;
+        break;
+    }
+
+    switch(format)
+    {
+    case SPNG_FMT_RGBA8:
+    case SPNG_FMT_GA16:
+        bytes_per_pixel = 4;
+        bits = 16;
+        break;
+    case SPNG_FMT_RGBA16:
+        bytes_per_pixel = 8;
+        bits = 8;
+        break;
+    case SPNG_FMT_RGB8:
+        bytes_per_pixel = 3;
+        bits = 8;
+        break;
+    case SPNG_FMT_GA8:
+        bytes_per_pixel = 2;
+        bits = 8;
+
+        break;
+    case SPNG_FMT_G8:
+        bytes_per_pixel = 1;
+        bits = 8;
+
+        break;
+    case SPNG_FMT_PNG:
+    case SPNG_FMT_RAW:
+
+    default:
+        bytes_per_pixel = 1 * (ihdrin.bit_depth/8) * channels;
+        bits = ihdrin.bit_depth;
+        break;
+    }
+
+
+    /// Encoder
+    spng_ctx* outctx = spng_ctx_new(SPNG_CTX_ENCODER);
+    spng_set_png_file(outctx, outfile);
+
+    uint32_t linelenout = ihdrin.width / step;
+    struct spng_ihdr ihdr = {.width =linelenout,.height=inlines/step,.bit_depth=bits,.color_type = ihdrin.color_type,.compression_method=0,.filter_method=0,.interlace_method=0}; /* zero-initialize to set valid defaults */
+    spng_set_ihdr(outctx, &ihdr);
+    spng_set_option(outctx,SPNG_IMG_COMPRESSION_LEVEL,compressionLevel);
+    spng_set_option(outctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
+    spng_phys phys = {52638,52638,1};
+    spng_set_phys(outctx,&phys);
+    if(!gammacorrect){
+        double gm;
+        if(spng_get_gama(inctx,&gm)==SPNG_OK){
+            spng_set_gama(outctx,gm); // Set gamma for preview
+        }
+
+    }
+
+    spng_encode_chunks(outctx);
+    spng_encode_image(outctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
+
+
+    /// Decode
+    //uint8_t linebuf[ihdrin.width*bytes_per_pixel];
+    uint8_t* linebuf = (uint8_t*)std::malloc(ihdrin.width * bytes_per_pixel * sizeof(uint8_t));
+    if(linebuf == NULL){
+        std::cout << "Can not allocate memory... failing " << std::endl;
+        return;
+    }
+
+
+    std::cout << "Saving new png " << std::to_string(ihdr.width) << "x" << std::to_string(ihdr.height) << std::endl;
+    for(uint32_t y = 0;y<inlines-1;y += 1){
+        if(y % step != 0){
+            spng_decode_scanline(inctx,linebuf,ihdrin.width*bytes_per_pixel); // Ugly hack... throw away all the data.
+
+            //update_row_info(inctx); // increment row
+            continue;
+        }
+
+        auto res = spng_decode_row(inctx,linebuf,ihdrin.width*bytes_per_pixel);
+
+        // Downsample
+        uint32_t linebufptr = 0;
+        for(uint32_t x = 0 ; x<ihdrin.width*bytes_per_pixel ; x+= step*bytes_per_pixel){
+            for(int i = 0;i<bytes_per_pixel;i++){
+                linebuf[linebufptr++] = linebuf[x+i];
+            }
+        }
+        //std::cout << std::to_string(linebuf[0]) << std::endl;
+        auto encoderes = spng_encode_row(outctx, linebuf, linelenout*bytes_per_pixel); // TODO data transform
+        if(progresscb.has_value()){
+            (progresscb.value())( (float)y / (float)(inlines-2));
+        }
+        if(res != SPNG_OK){
+            std::cout << "Done early?! " << spng_strerror(res) << " row " << std::to_string(y) << std::endl;
+            break;
+        }
+        if(encoderes != SPNG_OK){
+            std::cout << "Encode done early?! " << spng_strerror(encoderes) << " row " << std::to_string(y) << std::endl;
+            break;
+        }
+    }
+
+    spng_ctx_free(outctx);
+    spng_ctx_free(inctx);
+    std::free(linebuf);
 }
 
 }

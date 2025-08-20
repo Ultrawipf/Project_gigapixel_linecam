@@ -32,6 +32,13 @@ struct StepperArgs : public argparse::Args {
     std::string& serial = kwarg("port","serial port, default /dev/ttyAMA0").set_default("/dev/ttyAMA0");
 };
 
+struct MiscArgs : public argparse::Args {
+    std::string &input    = arg("in,input file", "Image input");
+    std::string &output    = arg("out,output file", "Image output").set_default("out.png");
+};
+
+
+
 
 struct MyArgs : public argparse::Args {
 
@@ -39,6 +46,7 @@ struct MyArgs : public argparse::Args {
 
     ImgArgs &imgargs    = subcommand("img");
     StepperArgs &motorargs    = subcommand("mot");
+    MiscArgs &miscargs = subcommand("test");
 };
 
 
@@ -137,6 +145,21 @@ int main(int argc, char* argv[]) {
         std::cout << "Captured lines: "<< args.imgargs.lines << std::endl;
         motors.slideMotor_p->moveToMM(curPos,cam.moveSpeed,cam.moveAccel);
     }
+    if(args.miscargs.is_valid && !args.miscargs.input.empty() && !args.miscargs.output.empty()){
+
+        auto progresscb = [](float val){
+            std::cout << "\r" <<  std::to_string(val * 100.0f) << "%       " << std::flush;
+        };
+
+        std::cout << "Imgtest: "<< args.miscargs.input << " out: " <<  args.miscargs.output << std::endl;
+        FILE* infile = fopen(args.miscargs.input.c_str(),"rb");
+        FILE* outfile = fopen((args.miscargs.output).c_str(),"wb");
+        png::pngReencode(infile,outfile,1,5,SPNG_FMT_RGB8,true,progresscb);
+        fclose(infile);
+        fclose(outfile);
+        std::cout << "Done" << std::endl;
+    }
+
 
     pinctrl.setEnablePin(false);
     return 0;

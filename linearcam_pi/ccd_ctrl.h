@@ -127,7 +127,7 @@ public:
 
     static constexpr float lineDistMM = 0.0011; // 0.00125? // Pixel size (4-4.5um?)
 
-    static constexpr int colorLineDistShift = 20*4; // Ok 24*4?. 20 for 0.0011
+    static constexpr int colorLineDistShift = 22*4; // Ok 24*4?. 22 for 0.0011
     static constexpr int subLineDistShift = 6; // Ok
     static constexpr int mainLineDistShift = 20; // ???
 

@@ -46,6 +46,8 @@ public slots:
 
     void buttonExtCb(uint8_t buttons);
 
+    void statusMsgCb(QString status);
+
 private slots:
     void on_radioButton_mode_debug_clicked();
 
@@ -68,8 +70,9 @@ private:
     float curMovementSize = 5;
 
 
-    std::string imagepath = "./";
-    std::string previewFile = "preview.png";
+    fs::path imagepath = "./";
+    fs::path imagepathfullres = "./img";
+    fs::path previewFile = "preview.png";
     static QThreadPool pool;
 };
 #endif // MAINWINDOW_H

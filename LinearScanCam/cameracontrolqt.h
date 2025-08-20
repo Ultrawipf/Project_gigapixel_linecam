@@ -7,8 +7,12 @@
 #include <QtConcurrent/QtConcurrent>
 #include "ccd_ctrl.h"
 #include "pcfioqt.h"
+#include <filesystem>
+#include <spng.h>
 
 #define MAXPROGRESS 1000.0f
+
+namespace fs = std::filesystem;
 
 // Helper class to control a motor directly from Qt
 class MotorControlQt : public QObject{
@@ -88,15 +92,22 @@ public:
     QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0,QThreadPool *pool = QThreadPool::globalInstance());
     void abortCapture();
 
+    fs::path moveTempImage(fs::path sourcefile,fs::path destpath);
+    fs::path getUnusedImageName(fs::path path);
+    fs::path reencodePng(fs::path sourcefile,fs::path destfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_PNG,bool gammacorrect = false);
+    QFuture<fs::path> reencodePngFuture(fs::path sourcefile,fs::path destfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_PNG,bool gammacorrect = false,QThreadPool *pool = QThreadPool::globalInstance());
+
     const float imageStartPosMM = 15; // Begin of valid image area
     const float imageCenterPosMM = 52.5; // Center of valid image area
     const float previewCamCenterMM = 23; // Position when preview camera is centered in lens
     //const float imageEndPosMM = 85; // End of valid image area
     const int fullResLines = 70000; // Begin of valid image area
     bool captureInProgress = false;
+    const int previewDiv = 15;
+    bool enableLineSignal = false;
 
     // libcamera cam0
-    //void captureCallback(const std::vector<ccdpixel>& line);
+    void captureCallback(const std::vector<ccdpixel>& line);
 signals:
     void ready(bool);
     void busy(bool);
@@ -104,10 +115,13 @@ signals:
     void progress(int);
     void ccdStatus(QString);
     void motorStatus(QString);
+    void previewLineCaptured(const std::vector<ccdpixel>& line);
 
 private:
     uint32_t curLineNum = 0;
     uint32_t curLines = 0;
+    int previewSkip = 0;
+    std::vector<ccdpixel> previewLine;
 };
 
 

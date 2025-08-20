@@ -23,6 +23,7 @@ void ConfStore::loadSettings(std::string file){
     c["ccd"]["res"] = 3;
 
     c["imagepath"] = "/mnt/ssd/";
+    c["imagepathfullres"] = "/mnt/ssd/img/";
     c["previewfile"] = "preview.png";
     c["camtunefile"] = "";
 

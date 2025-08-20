@@ -3254,7 +3254,7 @@ static int read_scanline(spng_ctx *ctx)
     return 0;
 }
 
-static int update_row_info(spng_ctx *ctx)
+int update_row_info(spng_ctx *ctx)
 {
     int interlacing = ctx->ihdr.interlace_method;
     struct spng_row_info *ri = &ctx->row_info;

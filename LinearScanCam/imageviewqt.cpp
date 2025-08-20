@@ -49,3 +49,30 @@ bool ImageviewQt::viewportEvent(QEvent *event)
 void ImageviewQt::zoomToFit(){
     fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
 }
+
+void ImageviewQt::setImageSize(int x, int y){
+    curimage = QImage(x,y,QImage::Format::Format_RGB32);
+    //showFullImage(curimage);
+    curline = 0;
+}
+
+
+void ImageviewQt::showFullImage(QImage image){
+    scene()->clear();
+    image = image.transformed(QTransform().rotate(90));
+    scene()->addPixmap(QPixmap::fromImage(image));
+    zoomToFit();
+}
+
+void ImageviewQt::showLine(const std::vector<ccdpixel>& line){
+    // qDebug() << "Got line" << line.size();
+    QRgb *scanline = reinterpret_cast<QRgb*>(curimage.scanLine(curline));
+    uint32_t lineptr = 0;
+    for (int x = 0; x < curimage.width(); ++x) {
+        scanline[x] = qRgb(line[lineptr]/255,line[lineptr+1]/255,line[lineptr+2]/255);
+        lineptr+=3;
+    }
+    curline++;
+    scene()->clear();
+    scene()->addPixmap(QPixmap::fromImage(curimage));
+}

@@ -11,6 +11,7 @@
 
 #include <thread>
 #include <functional>
+#include <optional>
 
 #ifndef PNG_COMPRESSION_LEVEL
 #define PNG_COMPRESSION_LEVEL 0
@@ -46,7 +47,7 @@ public:
     std::vector<ccdpixel> captureLine(int usDelay = 0); // Should return last valid line or use a callback
     void moveLines(float lines);
     void abortImageCapture();
-    void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::function<void(const std::vector<ccdpixel>&)> *lineCallback = nullptr);
+    void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback = std::nullopt);
 
 
     const float imageStartPosMM = 25; // Begin of valid image area

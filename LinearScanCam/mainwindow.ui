@@ -339,10 +339,10 @@ QComboBox::down-arrow
 }
 
 QSpinBox::down-button,QDoubleSpinBox::down-button{
-    width: 50
+    width: 40
 }
 QSpinBox::up-button,QDoubleSpinBox::up-button{
-    width: 50
+    width: 40
 }
 
 /*-----QDoubleSpinBox &amp; QCalendarWidget-----*/
@@ -1020,6 +1020,18 @@ QSizeGrip
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
+     <number>2</number>
+    </property>
     <item row="1" column="0" colspan="2">
      <widget class="QFrame" name="frame_mode">
       <property name="sizePolicy">
@@ -1066,6 +1078,9 @@ QSizeGrip
        </item>
        <item>
         <widget class="QRadioButton" name="radioButton_linecam">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="text">
           <string>Line cam</string>
          </property>
@@ -1076,6 +1091,9 @@ QSizeGrip
        </item>
        <item>
         <widget class="QRadioButton" name="radioButton_4">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="text">
           <string>Gallery</string>
          </property>
@@ -1092,6 +1110,13 @@ QSizeGrip
          <attribute name="buttonGroup">
           <string notr="true">buttonGroup_mode</string>
          </attribute>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_status">
+         <property name="text">
+          <string>Waiting</string>
+         </property>
         </widget>
        </item>
        <item>
@@ -1148,13 +1173,16 @@ QSizeGrip
        </sizepolicy>
       </property>
       <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
+       <enum>QFrame::NoFrame</enum>
       </property>
       <property name="frameShadow">
        <enum>QFrame::Raised</enum>
       </property>
+      <property name="lineWidth">
+       <number>0</number>
+      </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="page_boot">
        <layout class="QGridLayout" name="gridLayout_4">
@@ -1250,6 +1278,18 @@ QSizeGrip
       </widget>
       <widget class="QWidget" name="page_preview">
        <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
         <item>
          <widget class="LibCamVidQt" name="label_preview">
           <property name="sizePolicy">
@@ -1261,14 +1301,20 @@ QSizeGrip
           <property name="maximumSize">
            <size>
             <width>16777215</width>
-            <height>682</height>
+            <height>720</height>
            </size>
           </property>
           <property name="text">
            <string>Waiting for camera data...</string>
           </property>
+          <property name="scaledContents">
+           <bool>false</bool>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
+          </property>
+          <property name="margin">
+           <number>2</number>
           </property>
          </widget>
         </item>
@@ -1276,7 +1322,7 @@ QSizeGrip
          <widget class="QGroupBox" name="groupBox_previewctrl">
           <property name="minimumSize">
            <size>
-            <width>130</width>
+            <width>120</width>
             <height>0</height>
            </size>
           </property>
@@ -1334,7 +1380,7 @@ QSizeGrip
               <string>mm</string>
              </property>
              <property name="decimals">
-              <number>3</number>
+              <number>2</number>
              </property>
              <property name="maximum">
               <double>100.000000000000000</double>
@@ -1412,7 +1458,7 @@ QSizeGrip
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>25</height>
+            <height>32</height>
            </size>
           </property>
           <property name="baseSize">
@@ -1425,19 +1471,27 @@ QSizeGrip
            <bool>true</bool>
           </property>
           <property name="styleSheet">
-           <string notr="true">QSlider::handle:horizontal  {
-	height: 30px;
-	width: 25px;
+           <string notr="true">.QSlider {
+    min-height: 32px;
+    max-height: 32px;
 }
 
-QSlider{
-	margin: 0px,0px;
+.QSlider::groove:horizontal {
+    height: 5px;
+    background: #aaaaaa;
+    margin: 0 0px;
 }
 
-QSlider::groove:horizontal {
-    margin: 0px 0px;
-    height: 30px;
+.QSlider::handle:horizontal {
+	background: rgb(51, 51, 51);
+	border-radius: 4px;
+    border: 1px solid rgb(132, 132, 132);
+    width: 15px;
+	margin: -13px 0px;
 }</string>
+          </property>
+          <property name="minimum">
+           <number>1</number>
           </property>
           <property name="maximum">
            <number>1000</number>
@@ -1458,7 +1512,7 @@ QSlider::groove:horizontal {
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>25</height>
+            <height>32</height>
            </size>
           </property>
           <property name="tabletTracking">
@@ -1466,6 +1520,29 @@ QSlider::groove:horizontal {
           </property>
           <property name="autoFillBackground">
            <bool>false</bool>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">.QSlider {
+    min-height: 32px;
+    max-height: 32px;
+}
+
+.QSlider::groove:horizontal {
+    height: 5px;
+    background: #aaaaaa;
+    margin: 0 0px;
+}
+
+.QSlider::handle:horizontal {
+	background: rgb(51, 51, 51);
+	border-radius: 4px;
+    border: 1px solid rgb(132, 132, 132);
+    width: 15px;
+	margin: -13px 0px;
+}</string>
+          </property>
+          <property name="minimum">
+           <number>1</number>
           </property>
           <property name="maximum">
            <number>1000</number>

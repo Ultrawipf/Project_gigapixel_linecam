@@ -92,7 +92,7 @@ void LinearCamCtrl::abortImageCapture(){
 }
 
 // Saves image into a file and optionally returns last line as callback argument
-void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::function<void(const std::vector<ccdpixel>&)> *lineCallback){
+void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback){
     CCD_Parameters params = ccd.getCurParams();
 
     //float curPos = motors.slideMotor_p->getActualPos();
@@ -140,8 +140,8 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             if(line < params.lineBuffers+extraskip){
                 continue; // Ignore first lines
             }
-            if(lineCallback){
-                (*lineCallback)(linedata);
+            if(lineCallback.has_value()){
+                (lineCallback.value())(linedata);
             }
             //spng_encode_row(ctx, linedata.data(), linedata.size() * sizeof(ccdpixel));
             if(pngthread.joinable()){

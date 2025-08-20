@@ -5,12 +5,15 @@
 #include "cameracontrol.h"
 #include <spng.h>
 #include <imagehelpers.hpp>
+#include <algorithm>
 
 #ifndef DUMMY
 #include "ccd_ctrl.h"
 #endif
 Motors motordrivers; // Contains the motor drivers
 PinCtrl pinctrl;
+
+
 
 CameraControllerQt::CameraControllerQt(QObject *parent,LinCCDQt *ccd,PcfIoQt *pcfio) :
     QObject(parent),
@@ -65,26 +68,51 @@ bool CameraControllerQt::init(){
 }
 
 
-// void CameraControllerQt::captureCallback(const std::vector<ccdpixel>& line){
-//     int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
-//     qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
-//     curLineNum++;
+void CameraControllerQt::captureCallback(const std::vector<ccdpixel>& line){
 
-//     emit this->progress(progressval);
-// }
+    int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
+    // qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
+    curLineNum++;
+    if(enableLineSignal && curLineNum % previewSkip == 0){
+        // qDebug() << "Sending preview line...";
+        previewLine.clear();
+        for(int i = 0;i<line.size();i+=previewSkip){
+            previewLine.push_back(line[i]);
+        }
+        // std::copy_if(line.begin(),line.end(),std::back_inserter(previewLine),[this](ccdpixel i){return curLineNum % previewSkip == 0;});
+        emit previewLineCaptured(previewLine);
+        // qDebug() << "PVL" << previewLine.size();
+    }
+
+    emit this->progress(progressval);
+
+
+}
 // Scan an image and save to file
 // TODO: Also return lines for a preview image
 QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int usDelay,QThreadPool *pool){
     curLineNum = 0;
     curLines = lines;
-    static std::function<void(const std::vector<ccdpixel>&)>callback{ [&,this](const std::vector<ccdpixel>& line){
-        int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
-        //qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
-        curLineNum++;
+    auto params = LinearCamCtrl::ccd.getCurParams();
+    previewSkip = std::max<uint32_t>(0,previewDiv - params.moveLines);
+    //std::vector<ccdpixel> previewLine;
+    previewLine.clear();
+    previewLine.reserve((params.validPixelEnd-params.validPixelEnd) / previewSkip);
+    qDebug() << "Preview skip:" << previewSkip;
+    // static std::function<void(const std::vector<ccdpixel>&)>callback{ [&,this,previewSkip](const std::vector<ccdpixel>& line){
+    //     int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
+    //     // qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
+    //     curLineNum++;
+    //     if(curLineNum % previewSkip == 0){
+    //         qDebug() << "Sending preview line...";
+    //         std::transform(line.begin(),line.end(),std::back_inserter(previewLine),[this,previewSkip](ccdpixel i){return true;});
+    //         //emit previewLineCaptured(previewLine);
+    //         qDebug() << "PVL" << previewLine.size();
+    //     }
 
-        emit this->progress(progressval);
-    }
-    };
+    //     emit this->progress(progressval);
+    // }
+    // };
     qDebug() << "Capture image to file: "<< filename.c_str() << " lines " << lines;
     // emit busy(true);
 
@@ -94,7 +122,8 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     connect(watcher,&QFutureWatcher<void>::started,[this](){emit busy(true);});
     connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
     // Start task
-    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,&callback);
+    auto callbackfunc = std::bind(&CameraControllerQt::captureCallback,this,std::placeholders::_1);
+    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,(callbackfunc));
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
 
@@ -106,6 +135,65 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
 
 void CameraControllerQt::abortCapture(){
     LinearCamCtrl::abortImageCapture();
+}
+
+fs::path CameraControllerQt::getUnusedImageName(fs::path path){
+    std::string basename = path.stem().string(); // image.png --> image
+    std::string filename = path.filename().string(); // image.png
+    std::string ext = path.extension().string();
+    fs::path basepath = path.parent_path();
+    fs::path newpath = path.replace_filename(fs::path(basename+"0"+ext));
+
+    // Find first unused name in basepath
+    for(uint32_t i = 0 ; i< INT32_MAX ; i++){
+        newpath = path.replace_filename(fs::path(basename+std::to_string(i)+ext));
+        if(!fs::exists(newpath)){
+            break;
+        }
+    }
+    std::cout << "Inpath: " << path.string() << " new path " << newpath.string() << " filename " << filename << std::endl;
+    return newpath;
+}
+
+fs::path CameraControllerQt::moveTempImage(fs::path sourcefile,fs::path destpath){
+    //qDebug() << "Dest path" << destpath.string().c_str();
+    std::cout << "Filename: " << sourcefile.string() << " new path " << destpath.string() << " filename dest " << destpath.filename() << " filename source " << sourcefile.filename() << std::endl;
+    fs::path newpath = getUnusedImageName(fs::path(destpath.replace_filename(sourcefile.filename())));
+
+    try {
+        fs::create_directories(destpath.stem());
+        fs::rename(sourcefile, newpath);
+        return newpath;
+    } catch (fs::filesystem_error& e) {
+        std::cout << e.what() << '\n';
+        return fs::path();
+    }
+}
+QFuture<fs::path> CameraControllerQt::reencodePngFuture(fs::path sourcefile,fs::path destfile,uint32_t downsample,uint8_t compressionLevel,spng_format format,bool gammacorrect,QThreadPool *pool){
+    QFutureWatcher<fs::path>* watcher = new QFutureWatcher<fs::path>();
+    connect(watcher,&QFutureWatcher<fs::path>::finished,watcher,&QFutureWatcher<fs::path>::deleteLater,Qt::SingleShotConnection);
+    QFuture<fs::path> future = QtConcurrent::run(pool,&CameraControllerQt::reencodePng,this,sourcefile,destfile,downsample,compressionLevel,format,gammacorrect);
+    watcher->setFuture(future);
+    return future;
+}
+fs::path CameraControllerQt::reencodePng(fs::path sourcefile,fs::path destfile,uint32_t downsample,uint8_t compressionLevel,spng_format format,bool gammacorrect){
+    //fs::path newpath = getUnusedImageName(fs::path(destpath.replace_filename(sourcefile.filename())));
+    auto progresscb = [this](float val){
+        emit progress(val*MAXPROGRESS);
+    };
+
+    try {
+        fs::create_directories(destfile.stem());
+        FILE* infile = fopen(sourcefile.string().c_str(),"rb");
+        FILE* outfile = fopen(destfile.string().c_str(),"wb");
+        png::pngReencode(infile,outfile,downsample,compressionLevel,format,gammacorrect,progresscb);
+        fclose(infile);
+        fclose(outfile);
+        return destfile;
+    } catch (std::exception& e) {
+        std::cout << e.what() << '\n';
+        return fs::path();
+    }
 }
 
 // ----------------------------------------

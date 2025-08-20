@@ -530,6 +530,8 @@ SPNG_API int spng_set_exif(spng_ctx *ctx, struct spng_exif *exif);
 SPNG_API const char *spng_strerror(int err);
 SPNG_API const char *spng_version_string(void);
 
+SPNG_API int update_row_info(spng_ctx *ctx); // ADDED. Ugly hack to increment row efficiently
+
 #ifdef __cplusplus
 }
 #endif
