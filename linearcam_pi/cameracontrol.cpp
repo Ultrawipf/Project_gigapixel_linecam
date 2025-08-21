@@ -17,6 +17,10 @@ Motors::Motors()
 : slideMotor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTORLIN_MMTOSTEPS,MOTLIN_ENPIN,MOTLIN_DIAGPIN,MOTOR_SERIAL)
 {
     //TMC2209_motor Motors::slideMotor(MOTLIN_STEPPIN,MOTLIN_DIRPIN,MOTLIN_ENPIN,MOTLIN_DIAGPIN,MOTOR_SERIAL);
+    //slideMotor.verbose = true;
+#ifdef SLIDE_STALLGUARD
+    slideMotor.homeSG = SLIDE_STALLGUARD;
+#endif
     slideMotor.init();
     slideMotor.invdir = false;
     //slideMotor.updateConfigFromChip();
@@ -112,26 +116,6 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,1.0);
 
-        // TODO small preview image?
-        uint32_t previewPixelSkip = (params.samplesPerLine / 15000) + 1; // Preview should result in a skip of 1, others higher
-        // PNG Header
-        // struct spng_ihdr ihdr = {.width = params.samplesPerLine/3,.height=lines-params.lineBuffers,.bit_depth=16,.color_type = SPNG_COLOR_TYPE_TRUECOLOR,.compression_method=0,.filter_method=0,.interlace_method=0}; /* zero-initialize to set valid defaults */
-        // // ihdr.width = params.samplesPerLine/3;
-        // // ihdr.height = lines-params.lineBuffers;
-        // // ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR; // Truecolor 16b
-        // // ihdr.bit_depth = 16;
-        // // //uint64_t imgsize = ihdr.width * ihdr.height;
-        // spng_set_ihdr(ctx, &ihdr);
-        // spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,PNG_COMPRESSION_LEVEL);
-        // spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
-        // spng_phys phys = {52638,52638,1};
-        // spng_set_phys(ctx,&phys);
-        // //spng_set_srgb(ctx,0); // Gamma ignored if set
-        // spng_set_gama(ctx,1.0); // Set gamma for preview
-        // spng_encode_chunks(ctx);
-        // // PNG header end
-        // spng_encode_image(ctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
-
         std::thread pngthread;
         startCapture();
         captureInProgress = true;
@@ -157,7 +141,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         spng_ctx_free(ctx);
         fclose(pngfile);
         captureInProgress = false;
-    }else{
+    }else if(ext == "bmp"){
         // BMP
         // Bitmap?
         std::ofstream file(filename,std::ios::binary);
@@ -193,6 +177,9 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         }
         file.close();
         captureInProgress = false;
+    }else{
+        // Raw
+        std::cout << "Save raw" << std::endl;
     }
 
     //motors.slideMotor_p->moveToMM(curPos,moveSpeed,moveAccel);

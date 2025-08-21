@@ -142,11 +142,11 @@ fs::path CameraControllerQt::getUnusedImageName(fs::path path){
     std::string filename = path.filename().string(); // image.png
     std::string ext = path.extension().string();
     fs::path basepath = path.parent_path();
-    fs::path newpath = path.replace_filename(fs::path(basename+"0"+ext));
+    fs::path newpath = basepath/fs::path(basename+"0"+ext);//path.replace_filename(fs::path(basename+"0"+ext));
 
     // Find first unused name in basepath
     for(uint32_t i = 0 ; i< INT32_MAX ; i++){
-        newpath = path.replace_filename(fs::path(basename+std::to_string(i)+ext));
+        newpath = basepath/fs::path(basename+std::to_string(i)+ext);//path.replace_filename(fs::path(basename+std::to_string(i)+ext));
         if(!fs::exists(newpath)){
             break;
         }
@@ -170,14 +170,16 @@ fs::path CameraControllerQt::moveTempImage(fs::path sourcefile,fs::path destpath
     }
 }
 QFuture<fs::path> CameraControllerQt::reencodePngFuture(fs::path sourcefile,fs::path destfile,uint32_t downsample,uint8_t compressionLevel,spng_format format,bool gammacorrect,QThreadPool *pool){
-    QFutureWatcher<fs::path>* watcher = new QFutureWatcher<fs::path>();
-    connect(watcher,&QFutureWatcher<fs::path>::finished,watcher,&QFutureWatcher<fs::path>::deleteLater,Qt::SingleShotConnection);
+    //QFutureWatcher<fs::path>* watcher = new QFutureWatcher<fs::path>();
+    //connect(watcher,&QFutureWatcher<fs::path>::finished,watcher,&QFutureWatcher<fs::path>::deleteLater,Qt::SingleShotConnection);
     QFuture<fs::path> future = QtConcurrent::run(pool,&CameraControllerQt::reencodePng,this,sourcefile,destfile,downsample,compressionLevel,format,gammacorrect);
-    watcher->setFuture(future);
+    //watcher->setFuture(future);
     return future;
 }
 fs::path CameraControllerQt::reencodePng(fs::path sourcefile,fs::path destfile,uint32_t downsample,uint8_t compressionLevel,spng_format format,bool gammacorrect){
     //fs::path newpath = getUnusedImageName(fs::path(destpath.replace_filename(sourcefile.filename())));
+    //std::cout << "Filename: " << sourcefile.string() << " new path " << destfile.string() << " filename dest " << destfile.filename() << " filename source " << sourcefile.filename() << std::endl;
+
     auto progresscb = [this](float val){
         emit progress(val*MAXPROGRESS);
     };
@@ -255,6 +257,7 @@ void MotorControlQt::emitProgress(){
 QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel,QThreadPool *pool){
     if(!motor) return QtFuture::makeReadyFuture();
     startpos = motor->getActualPos();
+    mm = std::min<double>(maxPos-startpos,std::max<double>(minPos-startpos,mm));
     targetpos = startpos + mm;
 
     QFutureWatcher<void>* watcher = new QFutureWatcher<void>();

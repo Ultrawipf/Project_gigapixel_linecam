@@ -173,12 +173,12 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         lineOffsets.assign(lineshiftsFullres.begin(),lineshiftsFullres.end());
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
-            .validPixelBegin = 302,
+            .validPixelBegin = 640,
             .validPixelEnd = 40800,
             .samplesPerLine = 130548,
 
             .moveLines = 1,
-            .lineBuffers = maxShift+3,
+            .lineBuffers = maxShift+3+8,
             .lineOffsets = lineOffsets,
         };
         break;
@@ -192,7 +192,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .samplesPerLine = 66000, // Must be multiple of 4, 3 and 6 // 65280
 
             .moveLines = 2,
-            .lineBuffers = maxShift+3,
+            .lineBuffers = maxShift+3+8,
             .lineOffsets=lineOffsets, // /2
         };
         break;
@@ -206,7 +206,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .samplesPerLine = 33500, // 32640
 
             .moveLines = 4,
-            .lineBuffers = maxShift+3,
+            .lineBuffers = maxShift+3+8,
             .lineOffsets = lineOffsets // /4
         };
         break;
@@ -220,7 +220,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .samplesPerLine = 18000,
 
             .moveLines = 8,
-            .lineBuffers = maxShift+3,
+            .lineBuffers = maxShift+3+4,
             .lineOffsets = lineOffsets // /8
         };
         break;

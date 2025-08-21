@@ -72,7 +72,10 @@ private:
 
     fs::path imagepath = "./";
     fs::path imagepathfullres = "./img";
+    fs::path imagepathlowres = "./preview";
     fs::path previewFile = "preview.png";
     static QThreadPool pool;
+
+    static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip;
 };
 #endif // MAINWINDOW_H

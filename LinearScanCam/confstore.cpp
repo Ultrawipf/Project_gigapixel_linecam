@@ -24,6 +24,7 @@ void ConfStore::loadSettings(std::string file){
 
     c["imagepath"] = "/mnt/ssd/";
     c["imagepathfullres"] = "/mnt/ssd/img/";
+    c["imagepathlowres"] = "/mnt/ssd/preview/";
     c["previewfile"] = "preview.png";
     c["camtunefile"] = "";
 

@@ -135,18 +135,30 @@ public:
     static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
     static constexpr float colorLineDistMM = lineDistMM*24; // 2 main lines
 
+    static constexpr int maxLineMovementSkip = 12; // MoveLines of lowest resolution
+
 
     //Execute line shifts for every line
-    static constexpr const std::array<int,12> lineshiftsFullres = {colorLineDistShift*2,colorLineDistShift,0,
-                                                   colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
-                                                   colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
-                                                   colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
+    // static constexpr const std::array<int,12> lineshiftsFullres = {colorLineDistShift*2,colorLineDistShift,0,
+    //                                                colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
+    //                                                colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
+    //                                                colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
+    // };
+    static constexpr const std::array<int,12> lineshiftsFullres = {
+    colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
+    colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
+
+    colorLineDistShift*2,colorLineDistShift,0,
+    colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
+
+
     };
 
-    // Tested and working!
+    // Tested and working! ?! maybe?
     static constexpr const std::array<int,6> lineshiftsHalfres = {
-        colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
-        colorLineDistShift*2,colorLineDistShift,0
+
+        colorLineDistShift*2,colorLineDistShift,0,
+        colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift
      };
 
     // Tested and working!

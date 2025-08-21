@@ -58,6 +58,7 @@ void ImageviewQt::setImageSize(int x, int y){
 
 
 void ImageviewQt::showFullImage(QImage image){
+    qDebug() << "Showing new image";
     scene()->clear();
     image = image.transformed(QTransform().rotate(90));
     scene()->addPixmap(QPixmap::fromImage(image));

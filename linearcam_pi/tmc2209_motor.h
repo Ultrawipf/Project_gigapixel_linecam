@@ -154,9 +154,9 @@ public:
     bool invdir = false;
     bool verbose = false;
 
-    uint8_t homeSG = 25;
-    uint32_t homeCoolstepTh = 100*8;
-    float homeSpeed = 2500; // Tune these
+    uint8_t homeSG = 30;
+    uint32_t homeCoolstepTh = 100*8; // 100*8
+    float homeSpeed = 2500; // Tune these 2500,3000
 
     float uminToStepFreq(float speed,float stepsPerRotation);
 

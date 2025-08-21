@@ -33,6 +33,9 @@ public:
     int64_t homesteps = -40000;
     int homePre = 1000;
 
+    float minPos = 0;
+    float maxPos = 100;
+
     TMC2209_motor* motor;
 signals:
     void position(double val);
@@ -101,10 +104,12 @@ public:
     const float imageCenterPosMM = 52.5; // Center of valid image area
     const float previewCamCenterMM = 23; // Position when preview camera is centered in lens
     //const float imageEndPosMM = 85; // End of valid image area
-    const int fullResLines = 70000; // Begin of valid image area
+    const int fullResLines = 80000; // Full size
     bool captureInProgress = false;
     const int previewDiv = 15;
     bool enableLineSignal = false;
+    const float stepperMoveSpeed = 800;
+    const float stepperMoveAccel = 5;
 
     // libcamera cam0
     void captureCallback(const std::vector<ccdpixel>& line);

@@ -13,6 +13,7 @@
 
 #include <QImageReader>
 #include <QToolTip>
+#include <QMetaObject>
 
 QThreadPool MainWindow::pool = QThreadPool();
 
@@ -34,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->groupBox_camactions->setEnabled(false);
 
     // Setup progressbar
+    progressbarHideTimer.moveToThread(this->thread());
     progressbarHideTimer.setSingleShot(true);
     progressbarHideTimer.callOnTimeout([this]{this->ui->progressBar_scan->setVisible(false);});
     progressbarHideTimer.setInterval(250);
@@ -57,7 +59,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Dist
     ui->doubleSpinBox_debug_dist->setValue(this->curMovementSize);
     ui->doubleSpinBox_preview_dist->setValue(this->curMovementSize);
-    //connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize);
+    connect(ui->doubleSpinBox_debug_dist,&QDoubleSpinBox::valueChanged,ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::setValue);
     connect(ui->doubleSpinBox_preview_dist,&QDoubleSpinBox::valueChanged,this,&MainWindow::changeMovementSize); // Done by UI signal connection
     // Debug info
     connect(ctrl,&CameraControllerQt::ccdStatus,this,[this](QString t){ui->label_ccdstatus_debug->setText("CCD Status: " + t);});
@@ -159,31 +161,65 @@ void MainWindow::captureImage(){
     applyCcdParams();
     statusMsgCb("Moving to start pos...");
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5,&pool); // TODO run outside main thread
-    motfut.then([this](){statusMsgCb("Capturing image...");});
+    fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
     float curpos = ctrl->slideMotorQt.getCurPos();
-    auto newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
-    auto future = ctrl->captureImageFuture(newimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool);
-    auto moveback = [&](){
-        qDebug() << "Moving back";
-        auto movefuture = ctrl->slideMotorQt.moveToMM(curpos,500,5,&pool);
-        statusMsgCb("Image capture done");
 
-        // Save and show image preview
-
+    // auto pngencodepreview = [this,newimagename](){
+    //     //qDebug() << "Png encoding" << newimagename.string().c_str() << " previewimg" <<  imagepathlowres/(newimagename.filename()).c_str(); // imagepathlowres/newimagename.filename()
+    //     auto pngfuture = ctrl->reencodePngFuture(newimagename,imagepathlowres/(newimagename.filename()),baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,3,SPNG_FMT_RGB8,true,&pool);
+    //     pngfuture.then([this](fs::path img){
+    //         QImage previewImg(img.c_str());
+    //         qDebug() << "Png encoding done" << img.string().c_str();
+    //         ui->graphicsView->showFullImage(previewImg);
+    //     });
+    //     return pngfuture;
+    // };
+    auto updateposfunc = [this,&curpos](){
+        curpos = ctrl->slideMotorQt.getCurPos();
     };
-    future.then(moveback);
-
-    auto pngencode = [this,newimagename](){
-        qDebug() << "Png encodeing";
-        auto pngfuture = ctrl->reencodePngFuture(newimagename,previewFile,12-ctrl->ccd->getCurParams().moveLines,5,SPNG_FMT_RGB8,true);
-        pngfuture.then([this](fs::path img){
-            QImage previewImg(img.c_str());
-            ui->graphicsView->showFullImage(previewImg);
-        });
+    auto capturefunc = [this,widthscale,newimagename](){
+        statusMsgCb("Capturing image...");
+        ctrl->captureImageFuture(newimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool).waitForFinished();
     };
+    auto finishedfunc = [this,curpos,newimagename](){
+            statusMsgCb("Moving back...");
+            auto mover = ctrl->slideMotorQt.moveToMM(curpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
+            auto pngfuture = ctrl->reencodePngFuture(newimagename,imagepathlowres/(newimagename.filename()),baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,3,SPNG_FMT_RGB8,true,&pool);
+            pngfuture.then([this](fs::path img){
+                QImage previewImg(img.c_str());
+                qDebug() << "Png encoding done" << img.string().c_str();
+                ui->graphicsView->showFullImage(previewImg);
+            });
+            // auto pngencoder = pngencodepreview();
+            // pngencoder.waitForFinished();
+            pngfuture.waitForFinished();
+            mover.waitForFinished();
+            statusMsgCb("Done");
+    };
+    // Do the stuff
+    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5,&pool)
+    .then([this](){QThread::sleep(ui->spinBox_delay->value());})
+    .then(updateposfunc)
+    // Capture the image
+    .then(capturefunc)
+    // Move back and show image
+    .then(finishedfunc);
+
+
+    // auto future = ctrl->captureImageFuture(newimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool);
+    // auto moveback = [&](){
+    //     qDebug() << "Moving back";
+    //     auto movefuture = ctrl->slideMotorQt.moveToMM(curpos,500,5,&pool);
+    //     statusMsgCb("Image capture done");
+
+    //     // Save and show image preview
+
+    // };
+    // future.then(moveback);
+
+
     // future.then(pngencode);
-    connect(ctrl,&CameraControllerQt::imageCaptureDone,this,pngencode,Qt::SingleShotConnection);
+    //connect(ctrl,&CameraControllerQt::imageCaptureDone,this,pngencode,Qt::SingleShotConnection);
 }
 
 void MainWindow::capturePreviewImage(){
@@ -196,6 +232,8 @@ void MainWindow::capturePreviewImage(){
         ui->radioButton_linearscan->click();
         return;
     }
+
+
     statusMsgCb("Starting preview capture...");
     ui->pushButton_savepreview->setEnabled(false);
     // Set preview parameters
@@ -203,27 +241,49 @@ void MainWindow::capturePreviewImage(){
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     ctrl->ccd->setResolution(CCD_Resolution::Preview); // Lowest resolution
     applyCcdParams(); // Set gains
-    statusMsgCb("Moving to start pos...");
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5,&pool); // TODO run outside main thread
-    motfut.then([this](){statusMsgCb("Capturing image...");});
-    float curpos = ctrl->slideMotorQt.getCurPos();
     CCD_Parameters params =  ctrl->ccd->getCurParams();
+
     uint32_t lines = (ctrl->fullResLines / params.moveLines)*widthscale;
-    // int previewSkip = std::max<uint32_t>(0,ctrl->previewDiv - params.moveLines);
-    // ui->graphicsView->setImageSize((params.validPixelEnd-params.validPixelEnd) / previewSkip,lines/previewSkip);
-    auto future = ctrl->captureImageFuture(previewFile,lines,0,&pool);
-    //future.waitForFinished();
+    qDebug() << "scale" << widthscale << "lines" << lines;
+    statusMsgCb("Moving to start pos...");
+    float curpos = ctrl->slideMotorQt.getCurPos();
+
+    auto updateposfunc = [this,&curpos](){
+        curpos = ctrl->slideMotorQt.getCurPos();
+    };
+
+    auto captureimagefunc = [this,lines](){
+        qDebug() << "Capture image" << lines;
+        ctrl->captureImageFuture(previewFile,lines,0,&pool).waitForFinished();
+    };
+
+
     auto previewDone = [&](){
+        qDebug() << "Move back";
         ui->pushButton_savepreview->setEnabled(true);
-        ctrl->slideMotorQt.moveToMM(curpos,500,5,&pool);
+        auto movefut = ctrl->slideMotorQt.moveToMM(curpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
         // Show preview
-        ui->progressBar_scan->setVisible(false); // Hide progress bar quickly
+        //ui->progressBar_scan->setVisible(false); // Hide progress bar quickly
+        qDebug() << "Show image";
         QImage previewImg(previewFile.c_str());
+        //QMetaObject::invokeMethod(ui->graphicsView,"showFullImage",previewImg,Qt::QueuedConnection);
         ui->graphicsView->showFullImage(previewImg);
         statusMsgCb("Preview capture done");
+        movefut.waitForFinished();
 
     };
-    connect(ctrl,&CameraControllerQt::imageCaptureDone,this,previewDone,Qt::SingleShotConnection);
+    // Do the stuff
+    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
+    .then(updateposfunc)
+    .then(captureimagefunc)
+    .then(previewDone);
+
+
+
+    //auto future = ctrl->captureImageFuture(previewFile,lines,0,&pool);
+    //future.waitForFinished();
+
+    //connect(ctrl,&CameraControllerQt::imageCaptureDone,this,previewDone,Qt::SingleShotConnection);
 
 }
 
@@ -257,6 +317,7 @@ void MainWindow::restoreSettings(ConfStore& config){
 
     imagepath.assign(c["imagepath"]);
     imagepathfullres.assign(c["imagepathfullres"]);
+    imagepathlowres.assign(c["imagepathlowres"]);
     previewFile = (imagepath / fs::path(c["previewfile"]));
     std::string camtunefile = c["camtunefile"];
     LibCamVidQt::camtunefile = camtunefile.c_str();
@@ -266,10 +327,15 @@ void MainWindow::restoreSettings(ConfStore& config){
 void MainWindow::progressCb(int progress){
     //qDebug() << "PROGRESS" << progress;
     if(progress != MAXPROGRESS){
-        progressbarHideTimer.stop();
+        progressbarHideTimer.start(progressbarHideTimer.interval());
+        //progressbarHideTimer.stop();
+        // if(progressbarHideTimer.isActive())
+        //     progressbarHideTimer.stop();
+            //QMetaObject::invokeMethod(&progressbarHideTimer,"stop",Qt::QueuedConnection);
         ui->progressBar_scan->setVisible(true);
     }else{
-        progressbarHideTimer.start();
+        //QMetaObject::invokeMethod(&progressbarHideTimer,"start",Qt::QueuedConnection);
+        //progressbarHideTimer.start();
     }
     ui->progressBar_scan->setValue(progress);
 }
@@ -278,7 +344,7 @@ void MainWindow::setReady(bool ready){
     ui->frame_mode->setEnabled(ready);
     if(ready){
         ui->label_boot1->setText("Camera ready");
-        ui->radioButton_mode_debug->click();
+        ui->radioButton_linearscan->click();
     }
     // ui->pushButton_shutter->setEnabled(true);
 }
@@ -294,7 +360,7 @@ void MainWindow::on_radioButton_mode_preview_clicked()
     statusMsgCb("Moving sensor...");
     ui->stackedWidget->setCurrentWidget(ui->page_preview);
     //ui->progressBar_scan->setVisible(false);
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,500,5);
+    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     motfut.then([this](){statusMsgCb("Live preview mode");});
 }
 
@@ -338,7 +404,7 @@ void MainWindow::on_radioButton_linearscan_clicked()
 {
     statusMsgCb("Moving sensor...");
     ui->stackedWidget->setCurrentWidget(ui->page_graphic);
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,500,5);
+    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     motfut.then([this](){statusMsgCb("Ready");});
     ui->groupBox_camactions->setVisible(true);
 
