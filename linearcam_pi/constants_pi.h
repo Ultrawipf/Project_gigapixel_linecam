@@ -18,6 +18,6 @@
 
 #define PNG_COMPRESSION_LEVEL 0 // 0 or 1
 
-#define SLIDE_STALLGUARD 33
+#define SLIDE_STALLGUARD 30
 
 #endif // CONSTANTS_PI_H

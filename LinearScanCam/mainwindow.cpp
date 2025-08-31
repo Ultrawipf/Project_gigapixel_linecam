@@ -163,6 +163,7 @@ void MainWindow::captureImage(){
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
     float curpos = ctrl->slideMotorQt.getCurPos();
+    fs::path recordimagename = rawTempFile;
 
     // auto pngencodepreview = [this,newimagename](){
     //     //qDebug() << "Png encoding" << newimagename.string().c_str() << " previewimg" <<  imagepathlowres/(newimagename.filename()).c_str(); // imagepathlowres/newimagename.filename()
@@ -177,49 +178,43 @@ void MainWindow::captureImage(){
     auto updateposfunc = [this,&curpos](){
         curpos = ctrl->slideMotorQt.getCurPos();
     };
-    auto capturefunc = [this,widthscale,newimagename](){
+    auto capturefunc = [this,widthscale,recordimagename](){
         statusMsgCb("Capturing image...");
-        ctrl->captureImageFuture(newimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool).waitForFinished();
+        ctrl->slideMotorQt.enableProgress = false;
+        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool).waitForFinished();
     };
-    auto finishedfunc = [this,curpos,newimagename](){
-            statusMsgCb("Moving back...");
+    auto finishedfunc = [this,curpos,newimagename,recordimagename,widthscale](){
+            statusMsgCb("Processing image...");
+            auto params = ctrl->ccd->getCurParams();
             auto mover = ctrl->slideMotorQt.moveToMM(curpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
-            auto pngfuture = ctrl->reencodePngFuture(newimagename,imagepathlowres/(newimagename.filename()),baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,3,SPNG_FMT_RGB8,true,&pool);
-            pngfuture.then([this](fs::path img){
-                QImage previewImg(img.c_str());
-                qDebug() << "Png encoding done" << img.string().c_str();
-                ui->graphicsView->showFullImage(previewImg);
+            auto pngfuture = ctrl->reencodeRawToPngFuture(recordimagename,newimagename,(ctrl->fullResLines / params.moveLines)*widthscale,params.validPixelEnd - params.validPixelBegin,3);
+
+            pngfuture.then([this,newimagename,recordimagename](fs::path img){
+                fs::path lowresfile = imagepathlowres/(newimagename.filename());
+                // delete temp file
+                fs::remove(recordimagename);
+                statusMsgCb("Processing preview...");
+                auto pngfuturepreview = ctrl->reencodePngFuture(img,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompression,SPNG_FMT_RGB8,true,&pool);
+                pngfuturepreview.waitForFinished();
+                QImage previewImg(lowresfile.c_str());
+                QMetaObject::invokeMethod(ui->graphicsView,"showFullImage" ,Qt::QueuedConnection,Q_ARG(QImage,previewImg));
             });
-            // auto pngencoder = pngencodepreview();
-            // pngencoder.waitForFinished();
+
             pngfuture.waitForFinished();
+            ctrl->slideMotorQt.enableProgress = true;
+            statusMsgCb("Moving back...");
             mover.waitForFinished();
             statusMsgCb("Done");
     };
     // Do the stuff
-    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),500,5,&pool)
+    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then([this](){QThread::sleep(ui->spinBox_delay->value());})
     .then(updateposfunc)
     // Capture the image
     .then(capturefunc)
     // Move back and show image
     .then(finishedfunc);
-
-
-    // auto future = ctrl->captureImageFuture(newimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool);
-    // auto moveback = [&](){
-    //     qDebug() << "Moving back";
-    //     auto movefuture = ctrl->slideMotorQt.moveToMM(curpos,500,5,&pool);
-    //     statusMsgCb("Image capture done");
-
-    //     // Save and show image preview
-
-    // };
-    // future.then(moveback);
-
-
-    // future.then(pngencode);
-    //connect(ctrl,&CameraControllerQt::imageCaptureDone,this,pngencode,Qt::SingleShotConnection);
+    ctrl->slideMotorQt.enableProgress = true;
 }
 
 void MainWindow::capturePreviewImage(){
@@ -254,6 +249,7 @@ void MainWindow::capturePreviewImage(){
 
     auto captureimagefunc = [this,lines](){
         qDebug() << "Capture image" << lines;
+        ctrl->slideMotorQt.enableProgress = false;
         ctrl->captureImageFuture(previewFile,lines,0,&pool).waitForFinished();
     };
 
@@ -267,8 +263,10 @@ void MainWindow::capturePreviewImage(){
         qDebug() << "Show image";
         QImage previewImg(previewFile.c_str());
         //QMetaObject::invokeMethod(ui->graphicsView,"showFullImage",previewImg,Qt::QueuedConnection);
-        ui->graphicsView->showFullImage(previewImg);
+        QMetaObject::invokeMethod(ui->graphicsView,"showFullImage" ,Qt::QueuedConnection,Q_ARG(QImage,previewImg));
+        //ui->graphicsView->showFullImage(previewImg);
         statusMsgCb("Preview capture done");
+        ctrl->slideMotorQt.enableProgress = true;
         movefut.waitForFinished();
 
     };
@@ -277,14 +275,7 @@ void MainWindow::capturePreviewImage(){
     .then(updateposfunc)
     .then(captureimagefunc)
     .then(previewDone);
-
-
-
-    //auto future = ctrl->captureImageFuture(previewFile,lines,0,&pool);
-    //future.waitForFinished();
-
-    //connect(ctrl,&CameraControllerQt::imageCaptureDone,this,previewDone,Qt::SingleShotConnection);
-
+    ctrl->slideMotorQt.enableProgress = true;
 }
 
 void MainWindow::imageCaptureBusyCb(bool busy){
@@ -321,6 +312,12 @@ void MainWindow::restoreSettings(ConfStore& config){
     previewFile = (imagepath / fs::path(c["previewfile"]));
     std::string camtunefile = c["camtunefile"];
     LibCamVidQt::camtunefile = camtunefile.c_str();
+    rawTempFile = imagepath/"img.bin";
+
+    // Motor
+    ctrl->slideMotorQt.motor->homeSG = c["mot"]["slidesg"];
+    ctrl->stepperMoveSpeed = c["mot"]["slidespeed"];
+    ctrl->stepperMoveAccel = c["mot"]["slideaccel"];
 
 }
 
@@ -384,13 +381,13 @@ void MainWindow::home()
 
 void MainWindow::moveLeft()
 {
-    ctrl->slideMotorQt.moveMM(-curMovementSize,500,5);
+    ctrl->slideMotorQt.moveMM(-curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
 }
 
 
 void MainWindow::moveRight()
 {
-    ctrl->slideMotorQt.moveMM(curMovementSize,500,5);
+    ctrl->slideMotorQt.moveMM(curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
 }
 
 

@@ -198,6 +198,32 @@ fs::path CameraControllerQt::reencodePng(fs::path sourcefile,fs::path destfile,u
     }
 }
 
+QFuture<fs::path> CameraControllerQt::reencodeRawToPngFuture(fs::path sourcefile,fs::path destfile,uint32_t height, uint32_t width,uint8_t compressionLevel,QThreadPool *pool){
+    QFuture<fs::path> future = QtConcurrent::run(pool,&CameraControllerQt::reencodeRawToPng,this,sourcefile,destfile,height,width,compressionLevel);
+    return future;
+}
+
+fs::path CameraControllerQt::reencodeRawToPng(fs::path sourcefile,fs::path destfile,uint32_t height, uint32_t width,uint8_t compressionLevel){
+    auto progresscb = [this](float val){
+        emit progress(val*MAXPROGRESS);
+    };
+
+    try {
+        fs::create_directories(destfile.stem());
+        FILE* infile = fopen(sourcefile.string().c_str(),"rb");
+        FILE* outfile = fopen(destfile.string().c_str(),"wb");
+        png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),compressionLevel,progresscb);
+        fclose(infile);
+        fclose(outfile);
+        return destfile;
+    } catch (std::exception& e) {
+        std::cout << e.what() << '\n';
+        return fs::path();
+    }
+}
+
+
+
 // ----------------------------------------
 LinCCDQt::LinCCDQt()
 {
@@ -244,6 +270,7 @@ double MotorControlQt::emitPosition(){
 }
 
 void MotorControlQt::emitProgress(){
+    if(!enableProgress) return;
     double curpos = emitPosition();
     if(targetpos != startpos){
         float progressVal = std::abs(MAXPROGRESS*(curpos-startpos) / (targetpos-startpos));

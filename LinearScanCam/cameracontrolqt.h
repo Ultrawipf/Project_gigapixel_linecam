@@ -37,6 +37,8 @@ public:
     float maxPos = 100;
 
     TMC2209_motor* motor;
+
+    bool enableProgress = true;
 signals:
     void position(double val);
     void progress(float val);
@@ -99,6 +101,10 @@ public:
     fs::path getUnusedImageName(fs::path path);
     fs::path reencodePng(fs::path sourcefile,fs::path destfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_PNG,bool gammacorrect = false);
     QFuture<fs::path> reencodePngFuture(fs::path sourcefile,fs::path destfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_PNG,bool gammacorrect = false,QThreadPool *pool = QThreadPool::globalInstance());
+    fs::path reencodeRawToPng(fs::path sourcefile,fs::path destfile,uint32_t height, uint32_t width,uint8_t compressionLevel = 0);
+    QFuture<fs::path> reencodeRawToPngFuture(fs::path sourcefile,fs::path destfile,uint32_t height, uint32_t width,uint8_t compressionLevel = 0,QThreadPool *pool = QThreadPool::globalInstance());
+
+
 
     const float imageStartPosMM = 15; // Begin of valid image area
     const float imageCenterPosMM = 52.5; // Center of valid image area
@@ -108,8 +114,8 @@ public:
     bool captureInProgress = false;
     const int previewDiv = 15;
     bool enableLineSignal = false;
-    const float stepperMoveSpeed = 800;
-    const float stepperMoveAccel = 5;
+    float stepperMoveSpeed = 800;
+    float stepperMoveAccel = 5;
 
     // libcamera cam0
     void captureCallback(const std::vector<ccdpixel>& line);

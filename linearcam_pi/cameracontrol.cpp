@@ -114,7 +114,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
-        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,1.0);
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,1.0,PNG_COMPRESSION_LEVEL);
 
         std::thread pngthread;
         startCapture();
@@ -155,6 +155,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         startCapture();
         captureInProgress = true;
+        std::thread thread;
         for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay);
             if(lineCallback){
@@ -169,7 +170,13 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
                     bmpline[linedata.size()-i+bmpoffset] = (linedata[i] >> 8);
                 }
 
-                file.write((char *) bmpline.data(),bmpline.size());
+                // file.write((char *) bmpline.data(),bmpline.size());
+                thread = std::thread([&](){
+                    file.write((char *) bmpline.data(),bmpline.size());
+                });
+                if(thread.joinable()){
+                    thread.join();
+                }
                 //std::copy(bmpline.rbegin(),bmpline.rend(),file_it); // Write line in reverse for BMP
             }else{
                 std::copy(linedata.rbegin(),linedata.rend(),file_it); // Write line in reverse for BMP
@@ -179,7 +186,35 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         captureInProgress = false;
     }else{
         // Raw
+        std::thread thread;
         std::cout << "Save raw" << std::endl;
+        const int extraskip = 3;
+        /* Creating an encoder context requires a flag */
+        FILE* file = fopen(filename.c_str(),"wb");
+        startCapture();
+        captureInProgress = true;
+        for(int line = 0;line < lines && captureInProgress;line++){
+            std::vector<ccdpixel> linedata = captureLine(usDelay);
+            if(line < params.lineBuffers+extraskip){
+                continue; // Ignore first lines
+            }
+            if(lineCallback.has_value()){
+                (lineCallback.value())(linedata);
+            }
+            // Save line
+            thread = std::thread([&](){
+                fwrite(linedata.data(), linedata.size(), sizeof(ccdpixel), file);
+            });
+            if(thread.joinable()){
+                thread.join();
+            }
+            //fwrite(linedata.data(), linedata.size(), sizeof(ccdpixel), file);
+
+        }
+
+        endCapture();
+        fclose(file);
+        captureInProgress = false;
     }
 
     //motors.slideMotor_p->moveToMM(curPos,moveSpeed,moveAccel);
@@ -190,7 +225,8 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
     CCD_Parameters params = ccd.getCurParams();
     uint32_t linelength = params.samplesPerLine; // Data to buffer.
     uint32_t tgperiod = linelength / SAMPLESPERBUFFER;
-    uint32_t buf[tgperiod]; // Number of samples per line
+    //uint32_t buf[tgperiod]; // Number of samples per line
+    uint32_t* buf = (uint32_t*)std::malloc(tgperiod * sizeof(uint32_t));
     //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
     processThread = std::thread([&](){
         ccd.captureData(buf,tgperiod,tgperiod); // capture one line of raw data
@@ -217,6 +253,7 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
     int32_t nextline = imageCorrection->incrementLine(); // Shift current pointer
     //std::cout << "Nextline " << nextline << std::endl;
     imageCorrection->addLineBuf(buf,tgperiod); // Add to next line buffer
+    std::free(buf);
     return std::vector<ccdpixel>(line.begin() + params.validPixelBegin*3,line.begin() + params.validPixelEnd*3);
 }
 

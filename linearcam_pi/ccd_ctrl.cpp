@@ -178,7 +178,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .samplesPerLine = 130548,
 
             .moveLines = 1,
-            .lineBuffers = maxShift+3+8,
+            .lineBuffers = maxShift+3,
             .lineOffsets = lineOffsets,
         };
         break;

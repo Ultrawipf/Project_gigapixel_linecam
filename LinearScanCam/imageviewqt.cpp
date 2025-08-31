@@ -60,9 +60,13 @@ void ImageviewQt::setImageSize(int x, int y){
 void ImageviewQt::showFullImage(QImage image){
     qDebug() << "Showing new image";
     scene()->clear();
+    resetTransform();
     image = image.transformed(QTransform().rotate(90));
-    scene()->addPixmap(QPixmap::fromImage(image));
+    auto imageitem = QPixmap::fromImage(image);
+    scene()->addPixmap(imageitem);
+    this->centerOn(scene()->sceneRect().center());
     zoomToFit();
+
 }
 
 void ImageviewQt::showLine(const std::vector<ccdpixel>& line){

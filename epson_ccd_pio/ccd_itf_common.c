@@ -15,7 +15,7 @@
 #define  MAX( a, b ) ( ( a > b) ? a : b )
 #define  MIN( a, b ) ( ( a < b) ? a : b )
 
-#define TRANSFERSIZE 42000 // One line 122400 + a bit more dummy data
+#define TRANSFERSIZE 122400 // One line 122400 + a bit more dummy data
 #define DATA_BIT_DELAY_US 10
 // #define CTRL_LSBFIRST
 

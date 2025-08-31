@@ -127,13 +127,13 @@ public:
 
     static constexpr float lineDistMM = 0.0011; // 0.00125? // Pixel size (4-4.5um?)
 
-    static constexpr int colorLineDistShift = 22*4; // Ok 24*4?. 22 for 0.0011
+    static constexpr int colorLineDistShift = 80;//22*4; // Ok 24*4?. 22 for 0.0011
     static constexpr int subLineDistShift = 6; // Ok
-    static constexpr int mainLineDistShift = 20; // ???
+    static constexpr int mainLineDistShift = 40; // ???
 
-    static constexpr float mainLineDistMM = lineDistMM*12; // 12 lines
-    static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
-    static constexpr float colorLineDistMM = lineDistMM*24; // 2 main lines
+    // static constexpr float mainLineDistMM = lineDistMM*12; // 12 lines
+    // static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
+    // static constexpr float colorLineDistMM = lineDistMM*24; // 2 main lines
 
     static constexpr int maxLineMovementSkip = 12; // MoveLines of lowest resolution
 
@@ -145,13 +145,10 @@ public:
     //                                                colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
     // };
     static constexpr const std::array<int,12> lineshiftsFullres = {
-    colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
-    colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
-
-    colorLineDistShift*2,colorLineDistShift,0,
     colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
-
-
+    colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
+    colorLineDistShift*2,colorLineDistShift,0,
+    colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,   
     };
 
     // Tested and working! ?! maybe?

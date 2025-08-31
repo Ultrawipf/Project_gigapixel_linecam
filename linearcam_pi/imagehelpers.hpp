@@ -73,11 +73,11 @@ BitmapHeader_s header;
 
 namespace png {
 
-static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32_t height, uint8_t bits = 16,float gamma = 1.0){
+static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32_t height, uint8_t bits = 16,float gamma = 1.0,uint8_t compressionLevel = PNG_COMPRESSION_LEVEL){
 
     struct spng_ihdr ihdr = {.width =width,.height=height,.bit_depth=bits,.color_type = SPNG_COLOR_TYPE_TRUECOLOR,.compression_method=0,.filter_method=0,.interlace_method=0}; /* zero-initialize to set valid defaults */
     spng_set_ihdr(ctx, &ihdr);
-    spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,PNG_COMPRESSION_LEVEL);
+    spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,compressionLevel);
     spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
     spng_phys phys = {52638,52638,1};
     spng_set_phys(ctx,&phys);
@@ -87,13 +87,35 @@ static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32
     spng_encode_image(ctx, 0, 0, SPNG_FMT_PNG, SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE); // Will finalize on last line
 
 }
-// #ifdef __cplusplus
-// extern "C" {
-// #endif
-// static int update_row_info(spng_ctx *ctx);
-// #ifdef __cplusplus
-// }
-// #endif
+
+// Encodes a raw image buffer to png
+static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,uint8_t bytesPerSample = 1,uint8_t compressionLevel = 0,std::optional<std::function<void(float)>> progresscb = std::nullopt){
+    spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
+    spng_set_png_file(ctx, outfile);
+
+    // Allocate line buffer
+    int channels = 3;
+    int bytesPerLine = width*bytesPerSample*channels;
+    uint8_t* linebuf = (uint8_t*)std::malloc(bytesPerLine);
+
+    png::pngSetDefaultOptionsProgressive(ctx,width,height,bytesPerSample*8,1.0,compressionLevel);
+    spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,compressionLevel);
+
+    for(uint32_t line = 0;line<height;line++){
+        // read linewidth*bytesPerSample*3
+        size_t len = std::fread(linebuf,1,bytesPerLine,infile);
+        int res = spng_encode_row(ctx, linebuf, bytesPerLine);
+        if(res != SPNG_OK){
+            std::cout << "PNG encode error: " << std::to_string(res) << std::endl;
+            break;
+        }
+        if(progresscb.has_value()){
+            (progresscb.value())( (float)line / (float)(height-1));
+        }
+    }
+    std::free(linebuf);
+
+}
 
 // Reencodes a png line by line with different options. Gamma correction not possible in all modes
 static void pngReencode(FILE* infile,FILE* outfile,uint32_t downsample = 0,uint8_t compressionLevel = 0,spng_format format = SPNG_FMT_RGB8,bool gammacorrect = true,std::optional<std::function<void(float)>> progresscb = std::nullopt){

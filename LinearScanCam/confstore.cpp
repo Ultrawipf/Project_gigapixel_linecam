@@ -27,6 +27,10 @@ void ConfStore::loadSettings(std::string file){
     c["imagepathlowres"] = "/mnt/ssd/preview/";
     c["previewfile"] = "preview.png";
     c["camtunefile"] = "";
+    c["mot"]["slidesg"] = 30;
+    c["mot"]["slidespeed"] = 800;
+    c["mot"]["slideaccel"] = 5;
+
 
     config = c; // Base config
 

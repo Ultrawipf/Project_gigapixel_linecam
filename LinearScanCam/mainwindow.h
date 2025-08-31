@@ -69,11 +69,14 @@ private:
 
     float curMovementSize = 5;
 
+    uint8_t pngCompression = 2;
+
 
     fs::path imagepath = "./";
     fs::path imagepathfullres = "./img";
     fs::path imagepathlowres = "./preview";
     fs::path previewFile = "preview.png";
+    fs::path rawTempFile = "img.bin";
     static QThreadPool pool;
 
     static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip;
