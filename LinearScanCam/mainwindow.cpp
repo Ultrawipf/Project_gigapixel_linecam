@@ -34,6 +34,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->frame_mode->setEnabled(false);
     ui->groupBox_camactions->setEnabled(false);
 
+    qDebug() << "Startpos:" << ctrl->imageStartPosMM << "End:" << ctrl->imageEndPosMM << "Center:" << ctrl->imageCenterPosMM;
+
     // Setup progressbar
     progressbarHideTimer.moveToThread(this->thread());
     progressbarHideTimer.setSingleShot(true);
@@ -93,9 +95,11 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    saveSettings(config);
     std::cout << "Deleting mainwindow "<< std::endl;
     delete ui;
     delete ctrl;
+
     //delete camerathread;
 }
 
@@ -126,7 +130,7 @@ void MainWindow::busyCb(bool busy){
 void MainWindow::savePreview(){
     qDebug() << "Save preview";
     ui->pushButton_savepreview->setEnabled(false);
-    std::filesystem::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres.replace_filename(previewFile.filename())));
+    std::filesystem::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/(previewFile.filename())));
     auto future = ctrl->reencodePngFuture(previewFile,newfile,0,5,SPNG_FMT_PNG,false);//ctrl->moveTempImage(previewFile,imagepathfullres);
 
 
@@ -207,7 +211,7 @@ void MainWindow::captureImage(){
             statusMsgCb("Done");
     };
     // Do the stuff
-    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
+    ctrl->slideMotorQt.moveToMM((ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then([this](){QThread::sleep(ui->spinBox_delay->value());})
     .then(updateposfunc)
     // Capture the image
@@ -271,7 +275,7 @@ void MainWindow::capturePreviewImage(){
 
     };
     // Do the stuff
-    ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM * (1.0-widthscale),ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
+    ctrl->slideMotorQt.moveToMM((ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then(updateposfunc)
     .then(captureimagefunc)
     .then(previewDone);
@@ -314,11 +318,25 @@ void MainWindow::restoreSettings(ConfStore& config){
     LibCamVidQt::camtunefile = camtunefile.c_str();
     rawTempFile = imagepath/"img.bin";
 
+    ctrl->pnggamma = c["img"]["pnggamma"];
+
     // Motor
     ctrl->slideMotorQt.motor->homeSG = c["mot"]["slidesg"];
     ctrl->stepperMoveSpeed = c["mot"]["slidespeed"];
     ctrl->stepperMoveAccel = c["mot"]["slideaccel"];
 
+    ui->horizontalSlider_imagewidth->setValue((float)ui->horizontalSlider_imagewidth->maximum() * (float)c["img"]["widthscale"]);
+
+}
+
+void MainWindow::saveSettings(ConfStore& config){
+    json &c = config.config;
+
+    c["ccd"]["bgain"] = ui->spinBox_bgain->value();
+    c["ccd"]["ggain"] = ui->spinBox_ggain->value();
+    c["ccd"]["rgain"] = ui->spinBox_rgain->value();
+    c["ccd"]["res"] = ui->comboBox_resolution->currentIndex();
+    c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
 }
 
 void MainWindow::progressCb(int progress){

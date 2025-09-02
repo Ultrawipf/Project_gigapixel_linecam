@@ -25,6 +25,7 @@ public:
     ConfStore config;
 
     void restoreSettings(ConfStore& config);
+    void saveSettings(ConfStore& config);
     void applyCcdParams();
     void updateResEstimate();
 

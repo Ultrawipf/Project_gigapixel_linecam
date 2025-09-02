@@ -1626,7 +1626,7 @@ QSizeGrip
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
-               <widget class="QSpinBox" name="spinBox_bgain">
+               <widget class="QSpinBox" name="spinBox_rgain">
                 <property name="minimumSize">
                  <size>
                   <width>70</width>
@@ -1651,7 +1651,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
                </widget>
               </item>
               <item>
-               <widget class="QSpinBox" name="spinBox_rgain">
+               <widget class="QSpinBox" name="spinBox_bgain">
                 <property name="minimumSize">
                  <size>
                   <width>70</width>
@@ -1668,7 +1668,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
 </string>
                 </property>
                 <property name="prefix">
-                 <string>G </string>
+                 <string>B </string>
                 </property>
                 <property name="maximum">
                  <number>63</number>
@@ -1693,7 +1693,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
 </string>
                 </property>
                 <property name="prefix">
-                 <string>B </string>
+                 <string>G </string>
                 </property>
                 <property name="maximum">
                  <number>63</number>

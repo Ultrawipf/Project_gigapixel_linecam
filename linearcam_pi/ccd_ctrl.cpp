@@ -11,6 +11,7 @@
 #include <iostream>
 #include <algorithm>
 #include <bit>
+#include <math.h>
 
 #ifndef DUMMY
 //SM_def sm_data = {.pio = pio0,.offset = SMDEF_INVALID_VAL,.sm = SMDEF_INVALID_VAL};
@@ -184,7 +185,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         break;
     case CCD_Resolution::Div2: // Main+Sub x1
         lineOffsets.assign(lineshiftsHalfres.begin(),lineshiftsHalfres.end());
-        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 2;});
+        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v = std::round((float)v / 2.0f);});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 460,
@@ -198,7 +199,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         break;
     case CCD_Resolution::Div4: // Main only
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
-        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 4;});
+        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v = std::round((float)v / 4.0f);});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 373,
@@ -212,7 +213,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         break;
     case CCD_Resolution::Div8: // Main w. skip
         lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
-        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 8;});
+        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v = std::round((float)v / 8.0f);});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 320,
@@ -225,8 +226,8 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         };
         break;
     case CCD_Resolution::Preview: // Mainw. skip
-        lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end());
-        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v /= 12;});
+        lineOffsets.assign(lineshiftsQuarterres.begin(),lineshiftsQuarterres.end()); // Offset must be 8
+        std::for_each(lineOffsets.begin(),lineOffsets.end(),[](int &v){v = std::round((float)v / 12.0f);});
         maxShift = *std::max_element(lineOffsets.begin(), lineOffsets.end());
         return CCD_Parameters{
             .validPixelBegin = 302,

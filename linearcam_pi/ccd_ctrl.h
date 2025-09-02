@@ -125,11 +125,11 @@ public:
 
     bool rawmode = true;
 
-    static constexpr float lineDistMM = 0.0011; // 0.00125? // Pixel size (4-4.5um?)
+    static constexpr float lineDistMM = 0.001; // 0.001? 0.00125? // Pixel size (4-4.5um?)
 
-    static constexpr int colorLineDistShift = 80;//22*4; // Ok 24*4?. 22 for 0.0011
-    static constexpr int subLineDistShift = 6; // Ok
-    static constexpr int mainLineDistShift = 40; // ???
+    static constexpr int colorLineDistShift = 96;//22*4; // Ok 24*4?. 80 for 0.0011
+    static constexpr int subLineDistShift = 8; // Ok, 6 for 0.0011
+    static constexpr int mainLineDistShift = 52; // 40 for 0.0011
 
     // static constexpr float mainLineDistMM = lineDistMM*12; // 12 lines
     // static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
@@ -144,22 +144,25 @@ public:
     //                                                colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
     //                                                colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
     // };
+    static constexpr int colorLineDistShiftFullres = 102;
     static constexpr const std::array<int,12> lineshiftsFullres = {
-    colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift,
-    colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
-    colorLineDistShift*2,colorLineDistShift,0,
-    colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,   
+    colorLineDistShiftFullres*2+subLineDistShift,colorLineDistShiftFullres*1+subLineDistShift,subLineDistShift,
+    colorLineDistShiftFullres*2+mainLineDistShift+subLineDistShift,colorLineDistShiftFullres*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
+    colorLineDistShiftFullres*2,colorLineDistShiftFullres,0,
+    colorLineDistShiftFullres*2+mainLineDistShift,colorLineDistShiftFullres*1+mainLineDistShift,mainLineDistShift,
     };
 
     // Tested and working! ?! maybe?
+    static constexpr int colorLineDistShiftHalfres = 100;
+    static constexpr int subLineDistShiftHalfres = 8;
     static constexpr const std::array<int,6> lineshiftsHalfres = {
 
-        colorLineDistShift*2,colorLineDistShift,0,
-        colorLineDistShift*2+subLineDistShift,colorLineDistShift*1+subLineDistShift,subLineDistShift
+        colorLineDistShiftHalfres*2,colorLineDistShiftHalfres,0,
+        colorLineDistShiftHalfres*2+subLineDistShiftHalfres,colorLineDistShiftHalfres*1+subLineDistShiftHalfres,subLineDistShiftHalfres
      };
 
     // Tested and working!
-    static constexpr const std::array<int,3> lineshiftsQuarterres = {colorLineDistShift*2,colorLineDistShift,0};
+    static constexpr const std::array<int,3> lineshiftsQuarterres = {colorLineDistShift*2,colorLineDistShift,0}; // 96?
 
 protected:
 #ifndef DUMMY

@@ -31,6 +31,11 @@ void ConfStore::loadSettings(std::string file){
     c["mot"]["slidespeed"] = 800;
     c["mot"]["slideaccel"] = 5;
 
+    c["img"]["pnggamma"] = 1.5;
+    c["img"]["pngcompress"] = 2;
+
+    c["img"]["widthscale"] = 0.5;
+
 
     config = c; // Base config
 

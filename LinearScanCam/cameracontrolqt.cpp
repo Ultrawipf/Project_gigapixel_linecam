@@ -161,7 +161,7 @@ fs::path CameraControllerQt::moveTempImage(fs::path sourcefile,fs::path destpath
     fs::path newpath = getUnusedImageName(fs::path(destpath.replace_filename(sourcefile.filename())));
 
     try {
-        fs::create_directories(destpath.stem());
+        fs::create_directories(destpath.parent_path());
         fs::rename(sourcefile, newpath);
         return newpath;
     } catch (fs::filesystem_error& e) {
@@ -178,14 +178,14 @@ QFuture<fs::path> CameraControllerQt::reencodePngFuture(fs::path sourcefile,fs::
 }
 fs::path CameraControllerQt::reencodePng(fs::path sourcefile,fs::path destfile,uint32_t downsample,uint8_t compressionLevel,spng_format format,bool gammacorrect){
     //fs::path newpath = getUnusedImageName(fs::path(destpath.replace_filename(sourcefile.filename())));
-    //std::cout << "Filename: " << sourcefile.string() << " new path " << destfile.string() << " filename dest " << destfile.filename() << " filename source " << sourcefile.filename() << std::endl;
+    std::cout << "Filename: " << sourcefile.string() << " new path " << destfile.string() << " filename dest " << destfile.filename() << " filename source " << sourcefile.filename() << std::endl;
 
     auto progresscb = [this](float val){
         emit progress(val*MAXPROGRESS);
     };
 
     try {
-        fs::create_directories(destfile.stem());
+        fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
         png::pngReencode(infile,outfile,downsample,compressionLevel,format,gammacorrect,progresscb);
@@ -209,7 +209,7 @@ fs::path CameraControllerQt::reencodeRawToPng(fs::path sourcefile,fs::path destf
     };
 
     try {
-        fs::create_directories(destfile.stem());
+        fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
         png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),compressionLevel,progresscb);

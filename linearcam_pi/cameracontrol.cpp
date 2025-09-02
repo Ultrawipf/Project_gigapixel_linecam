@@ -73,7 +73,7 @@ LinearCamCtrl::~LinearCamCtrl(){
 
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
-    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms32);
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms64);
     this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,ccd.getCurParams().lineBuffers);
 
     ccd.startCapture();
@@ -114,7 +114,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
-        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,1.0,PNG_COMPRESSION_LEVEL);
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,pnggamma,PNG_COMPRESSION_LEVEL);
 
         std::thread pngthread;
         startCapture();

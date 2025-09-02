@@ -57,6 +57,8 @@ public:
     static constexpr float moveAccel = 50;
     static constexpr float moveSpeed = 350;
 
+    float pnggamma = 1.0;
+
     std::unique_ptr<CCD_ImageCorrection> imageCorrection;
     CCD_Ctrl& ccd;
     Motors& motors;

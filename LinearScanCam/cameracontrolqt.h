@@ -105,12 +105,14 @@ public:
     QFuture<fs::path> reencodeRawToPngFuture(fs::path sourcefile,fs::path destfile,uint32_t height, uint32_t width,uint8_t compressionLevel = 0,QThreadPool *pool = QThreadPool::globalInstance());
 
 
+    static constexpr int fullResLines = 80000;//80000; // Full size (imageEndPosMM-imageStartPosMM)/LinCCDQt::lineDistMM
+    static constexpr float imageCenterPosMM = 53; // Center of valid image area
+    static constexpr float imageStartPosMM = imageCenterPosMM - ((fullResLines/2.0f)*LinCCDQt::lineDistMM);//10; // Begin of valid image area
+    static constexpr float previewCamCenterMM = 23; // Position when preview camera is centered in lens
+    static constexpr float imageEndPosMM = imageCenterPosMM + ((fullResLines/2.0f)*LinCCDQt::lineDistMM); // End of valid image area
 
-    const float imageStartPosMM = 15; // Begin of valid image area
-    const float imageCenterPosMM = 52.5; // Center of valid image area
-    const float previewCamCenterMM = 23; // Position when preview camera is centered in lens
-    //const float imageEndPosMM = 85; // End of valid image area
-    const int fullResLines = 80000; // Full size
+    static_assert(imageStartPosMM > 0,"Start pos < 0, horizontal resolution too high");
+
     bool captureInProgress = false;
     const int previewDiv = 15;
     bool enableLineSignal = false;
