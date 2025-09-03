@@ -1182,7 +1182,7 @@ QSizeGrip
        <number>0</number>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="page_boot">
        <layout class="QGridLayout" name="gridLayout_4">
@@ -1748,6 +1748,37 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
             </widget>
            </item>
            <item>
+            <widget class="QDoubleSpinBox" name="doubleSpinBox_gamma">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox::down-button,QDoubleSpinBox::down-button{
+    width: 30
+}
+QSpinBox::up-button,QDoubleSpinBox::up-button{
+    width: 30
+}
+</string>
+             </property>
+             <property name="prefix">
+              <string>gma </string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.200000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>2.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item>
             <spacer name="verticalSpacer_4">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
@@ -2072,7 +2103,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
            <bool>false</bool>
           </property>
           <property name="dragDropMode">
-           <enum>QAbstractItemView::NoDragDrop</enum>
+           <enum>QAbstractItemView::DragDrop</enum>
           </property>
           <property name="defaultDropAction">
            <enum>Qt::IgnoreAction</enum>

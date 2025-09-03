@@ -144,16 +144,16 @@ public:
     //                                                colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
     //                                                colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
     // };
-    static constexpr int colorLineDistShiftFullres = 102;
+    static constexpr int colorLineDistShiftFullres = 98;
     static constexpr const std::array<int,12> lineshiftsFullres = {
     colorLineDistShiftFullres*2+subLineDistShift,colorLineDistShiftFullres*1+subLineDistShift,subLineDistShift,
-    colorLineDistShiftFullres*2+mainLineDistShift+subLineDistShift,colorLineDistShiftFullres*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
+    colorLineDistShiftFullres*2+mainLineDistShift+subLineDistShift-3,colorLineDistShiftFullres*1+mainLineDistShift+subLineDistShift-3,mainLineDistShift+subLineDistShift,
     colorLineDistShiftFullres*2,colorLineDistShiftFullres,0,
     colorLineDistShiftFullres*2+mainLineDistShift,colorLineDistShiftFullres*1+mainLineDistShift,mainLineDistShift,
     };
 
     // Tested and working! ?! maybe?
-    static constexpr int colorLineDistShiftHalfres = 100;
+    static constexpr int colorLineDistShiftHalfres = colorLineDistShift;
     static constexpr int subLineDistShiftHalfres = 8;
     static constexpr const std::array<int,6> lineshiftsHalfres = {
 

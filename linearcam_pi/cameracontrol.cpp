@@ -25,6 +25,9 @@ Motors::Motors()
     slideMotor.invdir = false;
     //slideMotor.updateConfigFromChip();
     slideMotor_p = &slideMotor;
+    slideMotor.setDoubleEdge(true);
+    slideMotor.setMultistepFilt(false);
+    slideMotor.setInterpolation(false); // disable interpolation for more reliable movement
 }
 
 Motors::~Motors(){
@@ -63,7 +66,7 @@ LinearCamCtrl::LinearCamCtrl(Motors& motors,CCD_Ctrl& ccd)
     std::cout << "Init?: "<< inited << std::endl;
     std::cout << "State: "<< ccd.readReg(0x61) << std::endl;
     */
-    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms8);
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms128);
 
 }
 
@@ -73,7 +76,8 @@ LinearCamCtrl::~LinearCamCtrl(){
 
 void LinearCamCtrl::startCapture(){
     std::cout << "Capture start "<< std::endl;
-    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms64);
+    motors.slideMotor_p->setEnable(true);
+    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms128); // Use with dedge
     this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,ccd.getCurParams().lineBuffers);
 
     ccd.startCapture();
@@ -88,6 +92,7 @@ void LinearCamCtrl::endCapture(){
     if(processThread.joinable()){
         processThread.join();
     }
+    motors.slideMotor_p->setEnable(false);
 }
 
 // Can be called from a different thread if a capture process is running. Might break the saved file!

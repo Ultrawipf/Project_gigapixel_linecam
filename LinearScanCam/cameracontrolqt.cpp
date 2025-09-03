@@ -199,7 +199,7 @@ fs::path CameraControllerQt::reencodeRawToPng(fs::path sourcefile,fs::path destf
         fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
-        png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),compressionLevel,pnggamma,progresscb);
+        png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),pnggamma,compressionLevel,progresscb);
         fclose(infile);
         fclose(outfile);
         return destfile;
@@ -286,7 +286,7 @@ QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel,QThreadPo
     return future;
 }
 QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel,QThreadPool *pool){
-    //std::cout << "Moving to mm QT "<< mm << std::endl;
+    std::cout << "Moving to mm QT "<< mm << std::endl;
     return moveMM(mm - motor->getActualPos(),speed,accel,pool);
 }
 

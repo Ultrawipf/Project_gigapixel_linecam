@@ -69,6 +69,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ctrl,&CameraControllerQt::ccdStatus,this,[this](QString t){ui->label_ccd_status_startup->setText("CCD Status: " + t);});
     connect(ctrl,&CameraControllerQt::motorStatus,this,[this](QString t){ui->label_motor_status_startup->setText("Motor Status: " + t);});
 
+
+    connect(ui->doubleSpinBox_gamma,&QDoubleSpinBox::valueChanged,this,[this](double value){ctrl->pnggamma = value;});
     // Preview line
     //connect(ctrl,&CameraControllerQt::previewLineCaptured,this,[this](const std::vector<ccdpixel>& line){qDebug() << line.size();});
     //connect(ctrl,&CameraControllerQt::previewLineCaptured,ui->graphicsView,&ImageviewQt::showLine);
@@ -172,21 +174,21 @@ void MainWindow::captureImage(){
     statusMsgCb("Moving to start pos...");
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
-    float curpos = ctrl->slideMotorQt.getCurPos();
+    moveBackPos = ctrl->slideMotorQt.getCurPos();
     fs::path recordimagename = rawTempFile;
 
-    auto updateposfunc = [this,&curpos](){
-        curpos = ctrl->slideMotorQt.getCurPos();
+    auto updateposfunc = [this](){
+        moveBackPos = ctrl->slideMotorQt.getCurPos();
     };
     auto capturefunc = [this,widthscale,recordimagename](){
         statusMsgCb("Capturing image...");
         ctrl->slideMotorQt.enableProgress = false;
         ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool).waitForFinished();
     };
-    auto finishedfunc = [this,curpos,newimagename,recordimagename,widthscale](){
+    auto finishedfunc = [this,newimagename,recordimagename,widthscale](){
             statusMsgCb("Processing image...");
             auto params = ctrl->ccd->getCurParams();
-            auto mover = ctrl->slideMotorQt.moveToMM(curpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
+            auto mover = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
             auto pngfuture = ctrl->reencodeRawToPngFuture(recordimagename,newimagename,(ctrl->fullResLines / params.moveLines)*widthscale,params.validPixelEnd - params.validPixelBegin,3);
 
             pngfuture.then([this,newimagename,recordimagename](fs::path img){
@@ -241,10 +243,11 @@ void MainWindow::capturePreviewImage(){
     uint32_t lines = (ctrl->fullResLines / params.moveLines)*widthscale;
     qDebug() << "scale" << widthscale << "lines" << lines;
     statusMsgCb("Moving to start pos...");
-    float curpos = ctrl->slideMotorQt.getCurPos();
+    moveBackPos = ctrl->slideMotorQt.getCurPos();
 
-    auto updateposfunc = [this,&curpos](){
-        curpos = ctrl->slideMotorQt.getCurPos();
+    auto updateposfunc = [this](){
+        moveBackPos = ctrl->slideMotorQt.getCurPos();
+        //qDebug() << "Curpos" << moveBackPos;
     };
 
     auto captureimagefunc = [this,lines](){
@@ -255,10 +258,10 @@ void MainWindow::capturePreviewImage(){
     };
 
 
-    auto previewDone = [&](){
-        qDebug() << "Move back";
+    auto previewDone = [this](){
+        //qDebug() << "Move back" << moveBackPos;
         ui->pushButton_savepreview->setEnabled(true);
-        auto movefut = ctrl->slideMotorQt.moveToMM(curpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+        auto movefut = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
         // Show preview
         //ui->progressBar_scan->setVisible(false); // Hide progress bar quickly
         qDebug() << "Show image";
@@ -317,13 +320,14 @@ void MainWindow::restoreSettings(ConfStore& config){
     rawTempFile = imagepath/"img.bin";
 
     ctrl->pnggamma = c["img"]["pnggamma"];
+    ui->doubleSpinBox_gamma->setValue(ctrl->pnggamma);
 
     // Motor
     ctrl->slideMotorQt.motor->homeSG = c["mot"]["slidesg"];
     ctrl->stepperMoveSpeed = c["mot"]["slidespeed"];
     ctrl->stepperMoveAccel = c["mot"]["slideaccel"];
 
-    ui->horizontalSlider_imagewidth->setValue((float)ui->horizontalSlider_imagewidth->maximum() * (float)c["img"]["widthscale"]);
+    //ui->horizontalSlider_imagewidth->setValue((float)ui->horizontalSlider_imagewidth->maximum() * (float)c["img"]["widthscale"]);
 
     ui->gallerywidget->imagepathfullres = imagepathfullres;
     ui->gallerywidget->imagepathlowres = imagepathlowres;
@@ -336,7 +340,9 @@ void MainWindow::saveSettings(ConfStore& config){
     c["ccd"]["ggain"] = ui->spinBox_ggain->value();
     c["ccd"]["rgain"] = ui->spinBox_rgain->value();
     c["ccd"]["res"] = ui->comboBox_resolution->currentIndex();
-    c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
+    //c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
+    c["img"]["pnggamma"] = ctrl->pnggamma;
+    config.saveSettings(CONFFILE);
 }
 
 void MainWindow::progressCb(int progress){
@@ -411,6 +417,7 @@ void MainWindow::moveRight()
 
 void MainWindow::on_pushButton_quit_clicked()
 {
+    saveSettings(config);
     qApp->exit();
 }
 

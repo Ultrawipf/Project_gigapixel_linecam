@@ -54,6 +54,19 @@ bool TMC2209_motor::updateConfigFromChip(){
     return true;
 }
 
+void TMC2209_motor::setChopconf(TMC2209_chopconf conf){
+    curchopconf = conf;
+    writeData(0x6C,conf.asint);
+}
+void TMC2209_motor::setGconf(TMC2209_gconf conf){
+    curgconf = conf;
+    writeData(0x00,conf.asint);
+}
+void TMC2209_motor::setCoolconf(TMC2209_coolconf conf){
+    curcoolconf = conf;
+    writeData(0x42,conf.asint);
+}
+
 int64_t TMC2209_motor::getPos(){
     return this->pos;
 }
@@ -206,6 +219,19 @@ void TMC2209_motor::setCoolstepTh(uint32_t th){
     writeData(0x14,th&0xFFFFF);
 }
 
+void TMC2209_motor::setDoubleEdge(bool en){
+    curchopconf.dedge = en;
+    if(en){
+        setMultistepFilt(false);
+    }
+    setChopconf(curchopconf);
+}
+
+void TMC2209_motor::setMultistepFilt(bool en){
+    curgconf.multistep_filt = en;
+    setGconf(curgconf);
+}
+
 void TMC2209_motor::setMicrostep(microstep ms){
     if(!initialized){ updateConfigFromChip(); }
     float lastStepMult = getStepMult(); // Update internal multiplier
@@ -271,10 +297,17 @@ float TMC2209_motor::uminToStepFreq(float speed,float stepsPerRotation){
 void TMC2209_motor::doStep(int delayus){
     //if(verbose)
     //    std::cout << "STEP: " << delayus << std::endl;
-    digitalWrite(step_pin, 1);
-    delayMicroseconds(delayus);
-    digitalWrite(step_pin, 0);
-    delayMicroseconds(delayus);
+    if(curchopconf.dedge){
+        digitalWrite(step_pin, !stepstate);
+        delayMicroseconds(delayus*2);
+        stepstate = !stepstate;
+    }else{
+        digitalWrite(step_pin, 1);
+        delayMicroseconds(delayus);
+        digitalWrite(step_pin, 0);
+        delayMicroseconds(delayus);
+    }
+
 }
 
 int TMC2209_motor::speedToUs(float speed){
@@ -320,7 +353,8 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
         return 0;
     }
     bool lastEnable = enabled;
-    setEnable(true);
+    if(!lastEnable)
+        setEnable(true);
     movingFlag = true;
 
     if(speed < 0){
@@ -374,8 +408,8 @@ int TMC2209_motor::move(int64_t steps,float speed,float accel){
         steps--;
     }
 
-
-    setEnable(lastEnable);
+    if(!lastEnable)
+            setEnable(lastEnable);
     movingFlag = false;
     return totalsteps-steps;
 }

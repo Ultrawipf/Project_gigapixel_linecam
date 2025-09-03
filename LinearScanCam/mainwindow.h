@@ -75,6 +75,8 @@ private:
 
     uint8_t pngCompression = 1;
 
+    float moveBackPos = 0; // Store position before capturing for use in lambdas
+
 
     fs::path imagepath = "./";
     fs::path imagepathfullres = "./img";

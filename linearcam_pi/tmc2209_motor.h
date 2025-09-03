@@ -135,6 +135,12 @@ public:
     void setInterpolation(bool en);
     void setCoolstepConf(TMC2209_coolconf conf);
     void setCoolstepTh(uint32_t th);
+    void setDoubleEdge(bool en);
+    void setMultistepFilt(bool en);
+
+    void setGconf(TMC2209_gconf conf);
+    void setChopconf(TMC2209_chopconf conf);
+    void setCoolconf(TMC2209_coolconf conf);
 
     int getStepMult();
 
@@ -206,6 +212,7 @@ private:
     TMC2209_pinsconf curpinsconf;
 
     float stepMult = 8;
+    bool stepstate = false; // For dedge
 };
 
 #endif // TMC22_9_MOTOR_H
