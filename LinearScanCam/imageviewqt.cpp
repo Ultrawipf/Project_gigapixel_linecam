@@ -68,7 +68,7 @@ void ImageviewQt::showFullImage(QImage image){
     auto imagerect = imageitem.rect().toRectF();
 
     scene()->addPixmap(imageitem);
-    if(curSceneRect.width() != imagerect.width() && curSceneRect.height() != imagerect.height()){
+    if(curSceneRect.width() != imagerect.width() || curSceneRect.height() != imagerect.height()){
         resetTransform();
         this->centerOn(scene()->itemsBoundingRect().center());
         zoomToFit();

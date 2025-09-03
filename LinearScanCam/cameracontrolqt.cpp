@@ -99,20 +99,7 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     previewLine.clear();
     previewLine.reserve((params.validPixelEnd-params.validPixelEnd) / previewSkip);
     qDebug() << "Preview skip:" << previewSkip;
-    // static std::function<void(const std::vector<ccdpixel>&)>callback{ [&,this,previewSkip](const std::vector<ccdpixel>& line){
-    //     int progressval = MAXPROGRESS*((float)curLineNum/(float)curLines);
-    //     // qDebug() << "Got line with len: " << line.size() << "Progress" << progressval;
-    //     curLineNum++;
-    //     if(curLineNum % previewSkip == 0){
-    //         qDebug() << "Sending preview line...";
-    //         std::transform(line.begin(),line.end(),std::back_inserter(previewLine),[this,previewSkip](ccdpixel i){return true;});
-    //         //emit previewLineCaptured(previewLine);
-    //         qDebug() << "PVL" << previewLine.size();
-    //     }
 
-    //     emit this->progress(progressval);
-    // }
-    // };
     qDebug() << "Capture image to file: "<< filename.c_str() << " lines " << lines;
     // emit busy(true);
 
@@ -212,7 +199,7 @@ fs::path CameraControllerQt::reencodeRawToPng(fs::path sourcefile,fs::path destf
         fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
-        png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),compressionLevel,progresscb);
+        png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),compressionLevel,pnggamma,progresscb);
         fclose(infile);
         fclose(outfile);
         return destfile;

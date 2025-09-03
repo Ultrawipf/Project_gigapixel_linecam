@@ -91,6 +91,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&ctrl->slideMotorQt, &MotorControlQt::busy,this,&MainWindow::busyCb);
 
     ui->graphicsView->setScene(new QGraphicsScene);
+
+    // Gallery
+    connect(ui->gallerywidget, &GalleryQt::itemSelected,ui->groupBox_galleryActions,&QGroupBox::setEnabled);
+    connect(ui->pushButton_galleryDelete, &QPushButton::clicked,ui->gallerywidget,&GalleryQt::deleteImage);
 }
 
 MainWindow::~MainWindow()
@@ -130,9 +134,11 @@ void MainWindow::busyCb(bool busy){
 void MainWindow::savePreview(){
     qDebug() << "Save preview";
     ui->pushButton_savepreview->setEnabled(false);
-    std::filesystem::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/(previewFile.filename())));
-    auto future = ctrl->reencodePngFuture(previewFile,newfile,0,5,SPNG_FMT_PNG,false);//ctrl->moveTempImage(previewFile,imagepathfullres);
-
+    std::filesystem::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/"img.png"));
+    fs::path lowresfile = imagepathlowres/(newfile.filename());
+    fs::rename(previewFile, newfile); // Move file
+    auto future = ctrl->reencodePngFuture(newfile,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompression,SPNG_FMT_RGB8,true);
+//ctrl->moveTempImage(previewFile,imagepathfullres);
 
     auto done = [this](fs::path newpath){
         QString infotext;
@@ -169,16 +175,6 @@ void MainWindow::captureImage(){
     float curpos = ctrl->slideMotorQt.getCurPos();
     fs::path recordimagename = rawTempFile;
 
-    // auto pngencodepreview = [this,newimagename](){
-    //     //qDebug() << "Png encoding" << newimagename.string().c_str() << " previewimg" <<  imagepathlowres/(newimagename.filename()).c_str(); // imagepathlowres/newimagename.filename()
-    //     auto pngfuture = ctrl->reencodePngFuture(newimagename,imagepathlowres/(newimagename.filename()),baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,3,SPNG_FMT_RGB8,true,&pool);
-    //     pngfuture.then([this](fs::path img){
-    //         QImage previewImg(img.c_str());
-    //         qDebug() << "Png encoding done" << img.string().c_str();
-    //         ui->graphicsView->showFullImage(previewImg);
-    //     });
-    //     return pngfuture;
-    // };
     auto updateposfunc = [this,&curpos](){
         curpos = ctrl->slideMotorQt.getCurPos();
     };
@@ -252,6 +248,7 @@ void MainWindow::capturePreviewImage(){
     };
 
     auto captureimagefunc = [this,lines](){
+        statusMsgCb("Capturing preview...");
         qDebug() << "Capture image" << lines;
         ctrl->slideMotorQt.enableProgress = false;
         ctrl->captureImageFuture(previewFile,lines,0,&pool).waitForFinished();
@@ -272,6 +269,7 @@ void MainWindow::capturePreviewImage(){
         statusMsgCb("Preview capture done");
         ctrl->slideMotorQt.enableProgress = true;
         movefut.waitForFinished();
+        statusMsgCb("Done");
 
     };
     // Do the stuff
@@ -327,6 +325,8 @@ void MainWindow::restoreSettings(ConfStore& config){
 
     ui->horizontalSlider_imagewidth->setValue((float)ui->horizontalSlider_imagewidth->maximum() * (float)c["img"]["widthscale"]);
 
+    ui->gallerywidget->imagepathfullres = imagepathfullres;
+    ui->gallerywidget->imagepathlowres = imagepathlowres;
 }
 
 void MainWindow::saveSettings(ConfStore& config){
@@ -438,5 +438,12 @@ void MainWindow::updateResEstimate(){
 void MainWindow::on_horizontalSlider_imagewidth_valueChanged(int value)
 {
     updateResEstimate();
+}
+
+
+
+void MainWindow::on_radioButton_gallery_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_gallery);
 }
 

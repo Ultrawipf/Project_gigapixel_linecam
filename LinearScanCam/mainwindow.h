@@ -49,6 +49,7 @@ public slots:
 
     void statusMsgCb(QString status);
 
+
 private slots:
     void on_radioButton_mode_debug_clicked();
 
@@ -60,6 +61,8 @@ private slots:
 
     void on_horizontalSlider_imagewidth_valueChanged(int value);
 
+    void on_radioButton_gallery_clicked();
+
 private:
     Ui::MainWindow *ui;
 
@@ -70,7 +73,7 @@ private:
 
     float curMovementSize = 5;
 
-    uint8_t pngCompression = 2;
+    uint8_t pngCompression = 1;
 
 
     fs::path imagepath = "./";
@@ -80,6 +83,6 @@ private:
     fs::path rawTempFile = "img.bin";
     static QThreadPool pool;
 
-    static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip;
+    static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip+1;
 };
 #endif // MAINWINDOW_H

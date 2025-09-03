@@ -48,7 +48,7 @@ public:
     void moveLines(float lines);
     void abortImageCapture();
     void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback = std::nullopt);
-
+    void captureRawLines(std::string filename,uint32_t lines,int usDelay=0); // No moving, dump lines to raw file
 
     const float imageStartPosMM = 25; // Begin of valid image area
     const float previewCamCenterMM = 25; // Position when preview camera is centered in lens

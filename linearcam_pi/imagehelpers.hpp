@@ -89,7 +89,7 @@ static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32
 }
 
 // Encodes a raw image buffer to png
-static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,uint8_t bytesPerSample = 1,uint8_t compressionLevel = 0,std::optional<std::function<void(float)>> progresscb = std::nullopt){
+static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,uint8_t bytesPerSample = 1,float gamma = 1.0,uint8_t compressionLevel = 0,std::optional<std::function<void(float)>> progresscb = std::nullopt){
     spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
     spng_set_png_file(ctx, outfile);
 
@@ -98,7 +98,7 @@ static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,u
     int bytesPerLine = width*bytesPerSample*channels;
     uint8_t* linebuf = (uint8_t*)std::malloc(bytesPerLine);
 
-    png::pngSetDefaultOptionsProgressive(ctx,width,height,bytesPerSample*8,1.0,compressionLevel);
+    png::pngSetDefaultOptionsProgressive(ctx,width,height,bytesPerSample*8,gamma,compressionLevel);
     spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,compressionLevel);
 
     for(uint32_t line = 0;line<height;line++){
