@@ -74,12 +74,15 @@ LinearCamCtrl::~LinearCamCtrl(){
     ccd.setClock(false);
 }
 
-void LinearCamCtrl::startCapture(){
+void LinearCamCtrl::startCapture(bool nomovemode){
     std::cout << "Capture start "<< std::endl;
-    motors.slideMotor_p->setEnable(true);
-    motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms128); // Use with dedge
-    this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,ccd.getCurParams().lineBuffers);
-
+    if(!nomovemode){
+        motors.slideMotor_p->setEnable(true);
+        motors.slideMotor_p->setMicrostep(TMC2209_motor::microstep::ms128); // Use with dedge
+        this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,ccd.getCurParams().lineBuffers);
+    }else{
+        this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,2);
+    }
     ccd.startCapture();
     // clear ccd
     // Clear last buffer
@@ -101,7 +104,7 @@ void LinearCamCtrl::abortImageCapture(){
 }
 
 // Saves image into a file and optionally returns last line as callback argument
-void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback){
+void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback,bool nomovemode){
     CCD_Parameters params = ccd.getCurParams();
 
     //float curPos = motors.slideMotor_p->getActualPos();
@@ -125,7 +128,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         startCapture();
         captureInProgress = true;
         for(int line = 0;line < lines && captureInProgress;line++){
-            std::vector<ccdpixel> linedata = captureLine(usDelay);
+            std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
             if(line < params.lineBuffers+extraskip){
                 continue; // Ignore first lines
             }
@@ -162,7 +165,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         captureInProgress = true;
         std::thread thread;
         for(int line = 0;line < lines && captureInProgress;line++){
-            std::vector<ccdpixel> linedata = captureLine(usDelay);
+            std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
             if(lineCallback){
                 (*lineCallback)(linedata);
             }
@@ -199,7 +202,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         startCapture();
         captureInProgress = true;
         for(int line = 0;line < lines && captureInProgress;line++){
-            std::vector<ccdpixel> linedata = captureLine(usDelay);
+            std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
             if(line < params.lineBuffers+extraskip){
                 continue; // Ignore first lines
             }
@@ -226,7 +229,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 }
 
 // Returns last valid line
-std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
+std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     CCD_Parameters params = ccd.getCurParams();
     uint32_t linelength = params.samplesPerLine; // Data to buffer.
     uint32_t tgperiod = linelength / SAMPLESPERBUFFER;
@@ -236,11 +239,13 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay){
     processThread = std::thread([&](){
         ccd.captureData(buf,tgperiod,tgperiod); // capture one line of raw data
     });
-    moveLines(params.moveLines); // Move while capture? faster?
 
-    uint32_t stride = params.lineOffsets.size(); // Offset previous sample
-    for(int i = 0;i<stride;i++){
-        imageCorrection->offsetLine(i,stride,-params.lineOffsets[i]);
+    if(!nomovemode){
+        moveLines(params.moveLines); // Move while capture? faster?
+        uint32_t stride = params.lineOffsets.size(); // Offset previous sample
+        for(int i = 0;i<stride;i++){
+            imageCorrection->offsetLine(i,stride,-params.lineOffsets[i]);
+        }
     }
 
     processThread.join(); // Join capture

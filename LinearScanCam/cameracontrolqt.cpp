@@ -90,7 +90,7 @@ void CameraControllerQt::captureCallback(const std::vector<ccdpixel>& line){
 }
 // Scan an image and save to file
 // TODO: Also return lines for a preview image
-QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int usDelay,QThreadPool *pool){
+QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int usDelay,QThreadPool *pool,bool nomovemode){
     curLineNum = 0;
     curLines = lines;
     auto params = LinearCamCtrl::ccd.getCurParams();
@@ -110,7 +110,7 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
     // Start task
     auto callbackfunc = std::bind(&CameraControllerQt::captureCallback,this,std::placeholders::_1);
-    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,(callbackfunc));
+    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,(callbackfunc),nomovemode);
     //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
     watcher->setFuture(future);
 

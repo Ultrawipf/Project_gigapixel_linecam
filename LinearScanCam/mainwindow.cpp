@@ -161,6 +161,9 @@ void MainWindow::savePreview(){
 void MainWindow::captureImage(){
     qDebug() << "SHUTTER";
 
+    bool nomovemode = ui->radioButton_linecam->isChecked();
+    int exposuretime = ui->spinBox_exposuretime->value();
+
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         ui->radioButton_linearscan->click();
         return;
@@ -180,10 +183,10 @@ void MainWindow::captureImage(){
     auto updateposfunc = [this](){
         moveBackPos = ctrl->slideMotorQt.getCurPos();
     };
-    auto capturefunc = [this,widthscale,recordimagename](){
+    auto capturefunc = [this,widthscale,recordimagename,nomovemode,exposuretime](){
         statusMsgCb("Capturing image...");
         ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,0,&pool).waitForFinished();
+        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,exposuretime,&pool,nomovemode).waitForFinished();
     };
     auto finishedfunc = [this,newimagename,recordimagename,widthscale](){
             statusMsgCb("Processing image...");
@@ -209,7 +212,11 @@ void MainWindow::captureImage(){
             statusMsgCb("Done");
     };
     // Do the stuff
-    ctrl->slideMotorQt.moveToMM((ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
+    float scanstartpos = ctrl->imageCenterPosMM;
+    if(!nomovemode){
+        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM;
+    }
+    ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then([this](){QThread::sleep(ui->spinBox_delay->value());})
     .then(updateposfunc)
     // Capture the image
@@ -223,6 +230,8 @@ void MainWindow::capturePreviewImage(){
     //static QThreadPool pool;
 
     qDebug() << "PREVIEW";
+    bool nomovemode = ui->radioButton_linecam->isChecked();
+    int exposuretime = ui->spinBox_exposuretime->value();
 
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         statusMsgCb("Preview mode");
@@ -250,11 +259,11 @@ void MainWindow::capturePreviewImage(){
         //qDebug() << "Curpos" << moveBackPos;
     };
 
-    auto captureimagefunc = [this,lines](){
+    auto captureimagefunc = [this,lines,nomovemode,exposuretime](){
         statusMsgCb("Capturing preview...");
         qDebug() << "Capture image" << lines;
         ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(previewFile,lines,0,&pool).waitForFinished();
+        ctrl->captureImageFuture(previewFile,lines,exposuretime,&pool,nomovemode).waitForFinished();
     };
 
 
@@ -276,7 +285,11 @@ void MainWindow::capturePreviewImage(){
 
     };
     // Do the stuff
-    ctrl->slideMotorQt.moveToMM((ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
+    float scanstartpos = ctrl->imageCenterPosMM;
+    if(!nomovemode){
+        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM;
+    }
+    ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then(updateposfunc)
     .then(captureimagefunc)
     .then(previewDone);
@@ -424,13 +437,12 @@ void MainWindow::on_pushButton_quit_clicked()
 
 void MainWindow::on_radioButton_linearscan_clicked()
 {
+    ui->horizontalSlider_imagewidth2->setVisible(true);
     statusMsgCb("Moving sensor...");
     ui->stackedWidget->setCurrentWidget(ui->page_graphic);
     auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     motfut.then([this](){statusMsgCb("Ready");});
     ui->groupBox_camactions->setVisible(true);
-
-
 }
 
 
@@ -452,5 +464,16 @@ void MainWindow::on_horizontalSlider_imagewidth_valueChanged(int value)
 void MainWindow::on_radioButton_gallery_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_gallery);
+}
+
+
+void MainWindow::on_radioButton_linecam_clicked()
+{
+    statusMsgCb("Moving sensor...");
+    ui->horizontalSlider_imagewidth2->setVisible(false);
+    ui->stackedWidget->setCurrentWidget(ui->page_graphic);
+    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    motfut.then([this](){statusMsgCb("Ready");});
+    ui->groupBox_camactions->setVisible(true);
 }
 

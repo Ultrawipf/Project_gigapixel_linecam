@@ -41,13 +41,13 @@ class LinearCamCtrl
 public:
     LinearCamCtrl(Motors& motors,CCD_Ctrl& ccd);
     ~LinearCamCtrl();
-    void startCapture();
+    void startCapture(bool nomovemode = false);
     void endCapture();
 
-    std::vector<ccdpixel> captureLine(int usDelay = 0); // Should return last valid line or use a callback
+    std::vector<ccdpixel> captureLine(int usDelay = 0,bool nomovemode = false); // Should return last valid line or use a callback
     void moveLines(float lines);
     void abortImageCapture();
-    void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback = std::nullopt);
+    void captureImage(std::string filename,uint32_t lines,int usDelay=0,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback = std::nullopt,bool nomovemode = false);
     void captureRawLines(std::string filename,uint32_t lines,int usDelay=0); // No moving, dump lines to raw file
 
     const float imageStartPosMM = 25; // Begin of valid image area

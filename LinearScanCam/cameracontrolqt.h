@@ -94,7 +94,7 @@ public:
     PcfIoQt* pcfio;
 
 
-    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0,QThreadPool *pool = QThreadPool::globalInstance());
+    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0,QThreadPool *pool = QThreadPool::globalInstance(),bool nomovemode = false);
     void abortCapture();
 
     fs::path moveTempImage(fs::path sourcefile,fs::path destpath);

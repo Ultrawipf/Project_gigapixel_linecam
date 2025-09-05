@@ -63,6 +63,8 @@ private slots:
 
     void on_radioButton_gallery_clicked();
 
+    void on_radioButton_linecam_clicked();
+
 private:
     Ui::MainWindow *ui;
 
