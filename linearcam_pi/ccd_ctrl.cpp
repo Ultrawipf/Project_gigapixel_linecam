@@ -204,7 +204,7 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
         return CCD_Parameters{
             .validPixelBegin = 373,
             .validPixelEnd = 11053,
-            .samplesPerLine = 33500, // 32640
+            .samplesPerLine = 33504, // 32640
 
             .moveLines = 4,
             .lineBuffers = maxShift+3+8,

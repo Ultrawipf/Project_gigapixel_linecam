@@ -289,7 +289,16 @@ int readFrames(const SM_def *sm_data,uint32_t* buf,int samples,int linelength){
 
         pio_sm_set_enabled(sm_data->pio,sm_data->sm, false); // Disable SM
         pio_sm_clear_fifos(sm_data->pio,sm_data->sm);
+        // pio_sm_exec(sm_data->pio, sm_data->sm, (0x0000 | sm_data->offset )); // Reset
+        // fill up fifo
+        // pio_sm_exec(sm_data->pio, sm_data->sm, (0xe03f )); // Set X 31
+        // while(!pio_sm_is_rx_fifo_full(sm_data->pio,sm_data->sm)){ // Stall fifo
+        //   pio_sm_exec(sm_data->pio, sm_data->sm, (0x4020 )); // In X
+        //   pio_sm_exec(sm_data->pio, sm_data->sm, (0x8000 )); // Push noblock
+        //   printf("Fill me up");
+        // }
         pio_sm_exec(sm_data->pio, sm_data->sm, (0x0000 | sm_data->offset )); // Reset
+
         pio_sm_set_enabled(sm_data->pio,sm_data->sm, true); // Enable SM
         //pio_sm_exec(sm_data->pio, sm_data->sm,0x3fa9);
         //pio_sm_drain_tx_fifo(sm_data->pio,sm_data->sm);

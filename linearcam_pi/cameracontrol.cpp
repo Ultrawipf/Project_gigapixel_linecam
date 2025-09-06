@@ -117,19 +117,20 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         std::cout << "Save as PNG" << std::endl;
         const int extraskip = 3;
+        int bonuslines = params.lineBuffers+extraskip;
         /* Creating an encoder context requires a flag */
         FILE* pngfile = fopen(filename.c_str(),"wb");
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
-        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines-params.lineBuffers-extraskip,16,pnggamma,PNG_COMPRESSION_LEVEL);
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines,16,pnggamma,PNG_COMPRESSION_LEVEL);
 
         std::thread pngthread;
         startCapture();
         captureInProgress = true;
-        for(int line = 0;line < lines && captureInProgress;line++){
+        for(int line = 0;line < lines+bonuslines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
-            if(line < params.lineBuffers+extraskip){
+            if(line < bonuslines){
                 continue; // Ignore first lines
             }
             if(lineCallback.has_value()){
@@ -201,9 +202,10 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         FILE* file = fopen(filename.c_str(),"wb");
         startCapture();
         captureInProgress = true;
-        for(int line = 0;line < lines && captureInProgress;line++){
+        int bonuslines = params.lineBuffers+extraskip;
+        for(int line = 0;line < lines + bonuslines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
-            if(line < params.lineBuffers+extraskip){
+            if(line < bonuslines){
                 continue; // Ignore first lines
             }
             if(lineCallback.has_value()){

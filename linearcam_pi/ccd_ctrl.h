@@ -144,6 +144,9 @@ public:
     //                                                colorLineDistShift*2+mainLineDistShift,colorLineDistShift*1+mainLineDistShift,mainLineDistShift,
     //                                                colorLineDistShift*2+mainLineDistShift+subLineDistShift,colorLineDistShift*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift
     // };
+
+    // Retune offsets if skip changes
+
     static constexpr int colorLineDistShiftFullres = 98;
     static constexpr const std::array<int,12> lineshiftsFullres = {
     colorLineDistShiftFullres*2+subLineDistShift,colorLineDistShiftFullres*1+subLineDistShift,subLineDistShift,
