@@ -15,6 +15,8 @@
 #include <QToolTip>
 #include <QMetaObject>
 
+#include "imagehelpers.hpp"
+
 QThreadPool MainWindow::pool = QThreadPool();
 
 MainWindow::MainWindow(QWidget *parent)
@@ -58,6 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButton_debug_right,&QPushButton::clicked,this,&MainWindow::moveRight);
     connect(ui->pushButton_preview_left,&QPushButton::clicked,this,&MainWindow::moveLeft);
     connect(ui->pushButton_preview_right,&QPushButton::clicked,this,&MainWindow::moveRight);
+    connect(ui->pushButton_preview_center,&QPushButton::clicked,this,[this](){ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);});
     // Dist
     ui->doubleSpinBox_debug_dist->setValue(this->curMovementSize);
     ui->doubleSpinBox_preview_dist->setValue(this->curMovementSize);
@@ -95,7 +98,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->graphicsView->setScene(new QGraphicsScene);
 
     // Gallery
-    connect(ui->gallerywidget, &GalleryQt::itemSelected,ui->groupBox_galleryActions,&QGroupBox::setEnabled);
+    connect(ui->gallerywidget, &GalleryQt::itemSelected,this,&MainWindow::updateGallerySelection);
     connect(ui->pushButton_galleryDelete, &QPushButton::clicked,ui->gallerywidget,&GalleryQt::deleteImage);
 }
 
@@ -176,6 +179,8 @@ void MainWindow::captureImage(){
     applyCcdParams();
     statusMsgCb("Moving to start pos...");
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
+    if(nomovemode) widthscale *= nomovemult;
+
     fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
     moveBackPos = ctrl->slideMotorQt.getCurPos();
     fs::path recordimagename = rawTempFile;
@@ -201,6 +206,7 @@ void MainWindow::captureImage(){
                 statusMsgCb("Processing preview...");
                 auto pngfuturepreview = ctrl->reencodePngFuture(img,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompression,SPNG_FMT_RGB8,true,&pool);
                 pngfuturepreview.waitForFinished();
+                statusMsgCb("Preview Done");
                 QImage previewImg(lowresfile.c_str());
                 QMetaObject::invokeMethod(ui->graphicsView,"showFullImage" ,Qt::QueuedConnection,Q_ARG(QImage,previewImg));
             });
@@ -245,6 +251,7 @@ void MainWindow::capturePreviewImage(){
     // Set preview parameters
 
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
+    if(nomovemode) widthscale *= nomovemult;
     ctrl->ccd->setResolution(CCD_Resolution::Preview); // Lowest resolution
     applyCcdParams(); // Set gains
     CCD_Parameters params =  ctrl->ccd->getCurParams();
@@ -415,6 +422,24 @@ void MainWindow::home()
 
 }
 
+void MainWindow::updateGallerySelection(QListWidgetItem* item){
+    ui->groupBox_galleryActions->setEnabled(item != nullptr);
+    if(!item){
+        ui->label_gallery_info->setText("");
+        return;
+    }
+    std::string filename = item->data(Qt::UserRole).value<QString>().toStdString();
+    fs::path fullresimgpath = imagepathfullres/filename;
+    FILE* f = fopen(fullresimgpath.string().c_str(),"rb");
+    png::PngImageInfo imginfo = png::getPngInfo(f);
+    fclose(f);
+
+    QString infotext = QString("Info:\n\n%1\nx\n%2\n\n%3b\n\n%4MB").arg(imginfo.ihdr.height).arg(imginfo.ihdr.width).arg(imginfo.ihdr.bit_depth).arg(std::round(((double)fs::file_size(fullresimgpath)/1000000.0)));
+
+    ui->label_gallery_info->setText(infotext);
+
+}
+
 
 void MainWindow::moveLeft()
 {
@@ -450,6 +475,8 @@ void MainWindow::updateResEstimate(){
     CCD_Parameters nextparams = ctrl->ccd->getParamsFromResolution((CCD_Resolution)ui->comboBox_resolution->currentIndex());
     int height = nextparams.validPixelEnd - nextparams.validPixelBegin;
     int width = ((ui->horizontalSlider_imagewidth->value() / 1000.0f) * ctrl->fullResLines) / nextparams.moveLines;
+    if(ui->radioButton_linecam->isChecked())
+        width *= nomovemult;
     ui->label_resolution->setText(QString("%1 x %2").arg(width).arg(height));
 }
 
@@ -464,6 +491,13 @@ void MainWindow::on_horizontalSlider_imagewidth_valueChanged(int value)
 void MainWindow::on_radioButton_gallery_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_gallery);
+    // Update free memory
+    fs::space_info spaceinfo = fs::space(imagepathfullres);
+    QString freespacetext = QString("Free:\n%1MB\nTotal:\n%2MB").arg(spaceinfo.free / 1000000).arg(spaceinfo.capacity / 1000000);
+    ui->label_gallery_freespace->setText(freespacetext);
+    ui->progressBar_freespace->setMaximum(spaceinfo.capacity/1000000);
+    ui->progressBar_freespace->setMinimum(0);
+    ui->progressBar_freespace->setValue((spaceinfo.capacity/ 1000000) - (spaceinfo.free / 1000000));
 }
 
 

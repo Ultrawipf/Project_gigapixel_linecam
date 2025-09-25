@@ -7,6 +7,7 @@
 #include "cameracontrolqt.h"
 #include "pcfioqt.h"
 #include "confstore.h"
+#include "galleryqt.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -49,6 +50,7 @@ public slots:
 
     void statusMsgCb(QString status);
 
+    void updateGallerySelection(QListWidgetItem* item);
 
 private slots:
     void on_radioButton_mode_debug_clicked();
@@ -86,6 +88,8 @@ private:
     fs::path previewFile = "preview.png";
     fs::path rawTempFile = "img.bin";
     static QThreadPool pool;
+
+    const float nomovemult = 2.0f;
 
     static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip+1;
 };

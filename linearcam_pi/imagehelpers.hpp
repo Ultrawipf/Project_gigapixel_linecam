@@ -88,6 +88,22 @@ static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32
 
 }
 
+struct PngImageInfo{
+    spng_phys phys;
+    spng_ihdr ihdr;
+};
+
+static PngImageInfo getPngInfo(FILE* file){
+    spng_ctx* ctx = spng_ctx_new(0);
+    spng_set_png_file(ctx, file);
+
+    PngImageInfo info;
+    spng_get_ihdr(ctx,&info.ihdr);
+    spng_get_phys(ctx,&info.phys);
+    spng_ctx_free(ctx);
+    return info;
+}
+
 // Encodes a raw image buffer to png
 static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,uint8_t bytesPerSample = 1,float gamma = 1.0,uint8_t compressionLevel = 0,std::optional<std::function<void(float)>> progresscb = std::nullopt){
     spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
@@ -114,7 +130,7 @@ static void rawToPng(FILE* infile,FILE* outfile,uint32_t height,uint32_t width,u
         }
     }
     std::free(linebuf);
-
+    spng_ctx_free(ctx);
 }
 
 // Reencodes a png line by line with different options. Gamma correction not possible in all modes

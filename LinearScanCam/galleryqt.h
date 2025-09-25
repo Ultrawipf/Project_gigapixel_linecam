@@ -26,7 +26,7 @@ public slots:
     void selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) override;
 
 signals:
-    void itemSelected(bool);
+    void itemSelected(QListWidgetItem* selected);
 };
 
 #endif // GALLERYQT_H

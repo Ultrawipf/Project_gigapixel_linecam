@@ -45,7 +45,8 @@ void GalleryQt::deleteImage(){
     if(!item){
         return;
     }
-    int ret = QMessageBox::question(this,"Delete image","Do you want to delete "+item->text() + "?",QMessageBox::Ok | QMessageBox::Cancel,QMessageBox::Cancel);
+    QMessageBox msg(QMessageBox::Question,QString("Delete image"),QString("Do you want to delete "+item->text() + "?"),QMessageBox::Ok | QMessageBox::Cancel,this,Qt::WindowStaysOnTopHint|Qt::FramelessWindowHint);
+    int ret = msg.exec();
 
     if(ret == QMessageBox::Ok){
 
@@ -65,5 +66,5 @@ void GalleryQt::deleteImage(){
 }
 
 void GalleryQt::selectionChanged(const QItemSelection &selected, const QItemSelection &deselected){
-    emit itemSelected(!selected.empty());
+    emit itemSelected(selected.empty() ? nullptr : currentItem());
 }

@@ -45,19 +45,19 @@ loopstart:
     jmp x-- loopstart side 0 
 ;push block side 0  ; Wait here when buffer full
 
-wait 0 pin 8 side 0 [0]
-wait 1 pin 8 side 1 [5]
+wait 0 pin 8 side 0 [4]
+wait 1 pin 8 side 1 [4]
 set pins 9 side 1 [0]
-wait 0 pin 8 side 0 [5]
+wait 0 pin 8 side 0 [4]
 set pins 0 side 0 [0]
 
 .wrap_target
-    wait 1 pin 8 side 0 [1]
+    wait 1 pin 8 side 0 [3]
     ;nop side 0
     in pins 8 side 1
     ;push iffull block side 1
     
-    wait 0 pin 8 side 1 [1]
+    wait 0 pin 8 side 1 [3]
     ;nop side 0
     in pins 8 side 0 ; Requires faster PIO DMA for 16b
     ;push iffull noblock side 0
