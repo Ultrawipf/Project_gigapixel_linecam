@@ -1,4 +1,4 @@
 execute "cmake . ; make" here and then execute the graphical app in the subfolder
-
+Move linearcamcamconf.json to the home folder
 
 Working firmware: 5cb275145ac4c5fef977ec61083ea10eb67b401b

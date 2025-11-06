@@ -14,9 +14,9 @@ void ConfStore::loadSettings(std::string file){
     json c;
     c["version"] = "0.1";
 
-    c["ccd"]["rgain"] = 0x38;
-    c["ccd"]["ggain"] = 0x32;
-    c["ccd"]["bgain"] = 0x38;
+    c["ccd"]["rgain"] = 63;//0x38; //63
+    c["ccd"]["ggain"] = 54;//0x32; //54
+    c["ccd"]["bgain"] = 60;//0x38; //60
     c["ccd"]["rofs"] = 0x7E;
     c["ccd"]["gofs"] = 0x77;
     c["ccd"]["bofs"] = 0x7E;

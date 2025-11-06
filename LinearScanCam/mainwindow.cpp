@@ -175,7 +175,8 @@ void MainWindow::captureImage(){
         // ui->groupBox_camactions->setVisible(true);
     }
     statusMsgCb("Starting image capture...");
-    ctrl->ccd->setResolution((CCD_Resolution)ui->comboBox_resolution->currentIndex());
+    CCD_Resolution res = (CCD_Resolution)ui->comboBox_resolution->currentIndex();
+    ctrl->ccd->setResolution(res);
     applyCcdParams();
     statusMsgCb("Moving to start pos...");
     float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
@@ -185,6 +186,11 @@ void MainWindow::captureImage(){
     moveBackPos = ctrl->slideMotorQt.getCurPos();
     fs::path recordimagename = rawTempFile;
 
+    int pngCompressionOvr = pngCompression;
+    if((unsigned int)res < 3){
+        pngCompressionOvr = 0; // No compression for high res
+    }
+
     auto updateposfunc = [this](){
         moveBackPos = ctrl->slideMotorQt.getCurPos();
     };
@@ -193,18 +199,18 @@ void MainWindow::captureImage(){
         ctrl->slideMotorQt.enableProgress = false;
         ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,exposuretime,&pool,nomovemode).waitForFinished();
     };
-    auto finishedfunc = [this,newimagename,recordimagename,widthscale](){
+    auto finishedfunc = [this,newimagename,recordimagename,widthscale,pngCompressionOvr](){
             statusMsgCb("Processing image...");
             auto params = ctrl->ccd->getCurParams();
             auto mover = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
             auto pngfuture = ctrl->reencodeRawToPngFuture(recordimagename,newimagename,(ctrl->fullResLines / params.moveLines)*widthscale,params.validPixelEnd - params.validPixelBegin,3);
 
-            pngfuture.then([this,newimagename,recordimagename](fs::path img){
+            pngfuture.then([this,newimagename,recordimagename,pngCompressionOvr](fs::path img){
                 fs::path lowresfile = imagepathlowres/(newimagename.filename());
                 // delete temp file
                 fs::remove(recordimagename);
                 statusMsgCb("Processing preview...");
-                auto pngfuturepreview = ctrl->reencodePngFuture(img,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompression,SPNG_FMT_RGB8,true,&pool);
+                auto pngfuturepreview = ctrl->reencodePngFuture(img,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompressionOvr,SPNG_FMT_RGB8,true,&pool);
                 pngfuturepreview.waitForFinished();
                 statusMsgCb("Preview Done");
                 QImage previewImg(lowresfile.c_str());
