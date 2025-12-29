@@ -197,7 +197,7 @@ void MainWindow::captureImage(){
     auto capturefunc = [this,widthscale,recordimagename,nomovemode,exposuretime](){
         statusMsgCb("Capturing image...");
         ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,exposuretime,&pool,nomovemode).waitForFinished();
+        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,exposuretime*1000,&pool,nomovemode).waitForFinished();
     };
     auto finishedfunc = [this,newimagename,recordimagename,widthscale,pngCompressionOvr](){
             statusMsgCb("Processing image...");
@@ -276,7 +276,7 @@ void MainWindow::capturePreviewImage(){
         statusMsgCb("Capturing preview...");
         qDebug() << "Capture image" << lines;
         ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(previewFile,lines,exposuretime,&pool,nomovemode).waitForFinished();
+        ctrl->captureImageFuture(previewFile,lines,exposuretime*1000,&pool,nomovemode).waitForFinished();
     };
 
 
