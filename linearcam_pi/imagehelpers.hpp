@@ -12,6 +12,9 @@
 #include <assert.h>
 #include <cstring>
 
+// Test different options
+#define DEFAULT_FILTER SPNG_FILTER_CHOICE_SUB
+
 namespace bmp {
 
 #pragma pack(push, 1)
@@ -79,6 +82,7 @@ static void pngSetDefaultOptionsProgressive(spng_ctx* ctx, uint32_t width,uint32
     spng_set_ihdr(ctx, &ihdr);
     spng_set_option(ctx,SPNG_IMG_COMPRESSION_LEVEL,compressionLevel);
     spng_set_option(ctx,SPNG_IMG_MEM_LEVEL,9); // Max memory
+    spng_set_option(ctx,SPNG_FILTER_CHOICE,DEFAULT_FILTER);
     spng_phys phys = {52638,52638,1};
     spng_set_phys(ctx,&phys);
     //spng_set_srgb(ctx,0); // Gamma ignored if set

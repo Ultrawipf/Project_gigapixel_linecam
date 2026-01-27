@@ -224,9 +224,11 @@ void MainWindow::captureImage(){
             statusMsgCb("Done");
     };
     // Do the stuff
+    auto params = ctrl->ccd->getCurParams();
     float scanstartpos = ctrl->imageCenterPosMM;
     if(!nomovemode){
         scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM;
+        scanstartpos -= (params.lineBuffers * params.moveLines * ctrl->ccd->lineDistMM);
     }
     ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
     .then([this](){QThread::sleep(ui->spinBox_delay->value());})

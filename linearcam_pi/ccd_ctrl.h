@@ -127,9 +127,9 @@ public:
 
     static constexpr float lineDistMM = 0.001; // 0.001? 0.00125? // Pixel size (4-4.5um?)
 
-    static constexpr int colorLineDistShift = 96;//22*4; // Ok 24*4?. 80 for 0.0011
+    static constexpr int colorLineDistShift = 98; //96,98? 103? //22*4; // Ok 24*4?. 80 for 0.0011
     static constexpr int subLineDistShift = 8; // Ok, 6 for 0.0011
-    static constexpr int mainLineDistShift = 52; // 40 for 0.0011
+    static constexpr int mainLineDistShift = 50; // 40 for 0.0011
 
     // static constexpr float mainLineDistMM = lineDistMM*12; // 12 lines
     // static constexpr float subLineDistMM = lineDistMM*2; // 2 lines
@@ -147,7 +147,7 @@ public:
 
     // Retune offsets if skip changes
 
-    static constexpr int colorLineDistShiftFullres = 96;//98;
+    static constexpr int colorLineDistShiftFullres = 100;//98;
     static constexpr const std::array<int,12> lineshiftsFullres = {
     colorLineDistShiftFullres*2+subLineDistShift,colorLineDistShiftFullres*1+subLineDistShift,subLineDistShift,
     colorLineDistShiftFullres*2+mainLineDistShift+subLineDistShift,colorLineDistShiftFullres*1+mainLineDistShift+subLineDistShift,mainLineDistShift+subLineDistShift,
