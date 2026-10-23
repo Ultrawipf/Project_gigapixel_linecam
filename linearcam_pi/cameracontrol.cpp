@@ -168,7 +168,6 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         startCapture();
         captureInProgress = true;
-        std::thread thread;
         for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
             if(lineCallback){
@@ -179,22 +178,18 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             if(sizeof(ccdpixel) == 2){
                 std::vector<uint8_t> bmpline;
                 bmpline.resize(linedata.size() ,0); // 8b, reserve
-                for(int i = 0;i<linedata.size()-bmpoffset;i++){
+                // Start at bmpoffset+1 so the reversed index stays inside the line
+                for(size_t i = bmpoffset+1;i<linedata.size()-bmpoffset;i++){
                     bmpline[linedata.size()-i+bmpoffset] = (linedata[i] >> 8);
                 }
 
-                // file.write((char *) bmpline.data(),bmpline.size());
-                thread = std::thread([&](){
-                    file.write((char *) bmpline.data(),bmpline.size());
-                });
-                if(thread.joinable()){
-                    thread.join();
-                }
+                file.write((char *) bmpline.data(),bmpline.size());
                 //std::copy(bmpline.rbegin(),bmpline.rend(),file_it); // Write line in reverse for BMP
             }else{
                 std::copy(linedata.rbegin(),linedata.rend(),file_it); // Write line in reverse for BMP
             }
         }
+        endCapture();
         file.close();
         captureInProgress = false;
     }else{
