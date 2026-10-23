@@ -102,6 +102,7 @@ private:
     void captureImageJob(CaptureSettings s,fs::path newimagename,fs::path recordimagename,int pngCompressionOvr);
     void capturePreviewJob(CaptureSettings s);
     void showImageFile(fs::path file);
+    QString exposureSummary();
 
     Ui::MainWindow *ui;
 

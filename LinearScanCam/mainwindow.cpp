@@ -337,7 +337,8 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
     ctrl->pngCompressionLevel = pngCompressionOvr;
     statusMsgCb("Capturing image...");
     motor.enableProgress = false;
-    ctrl->captureImageBlocking(scanfile.string(),lines,s.exposureUs,s.nomovemode);
+    ctrl->linePeriodUs = s.exposureUs; // Exposure = fixed line period, 0 = shortest possible
+    ctrl->captureImageBlocking(scanfile.string(),lines,0,s.nomovemode);
     if(abortRequested){
         // Partial scan. Discard it and return to the start position
         std::error_code ec;
@@ -376,7 +377,7 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
     motor.enableProgress = true;
     statusMsgCb("Moving back...");
     mover.waitForFinished();
-    statusMsgCb("Done");
+    statusMsgCb("Done. " + exposureSummary());
 }
 
 void MainWindow::capturePreviewImage(){
@@ -421,7 +422,8 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     statusMsgCb("Capturing preview...");
     ctrl->pngCompressionLevel = PNG_COMPRESSION_LEVEL;
     motor.enableProgress = false;
-    ctrl->captureImageBlocking(previewFile.string(),lines,s.exposureUs,s.nomovemode);
+    ctrl->linePeriodUs = s.exposureUs;
+    ctrl->captureImageBlocking(previewFile.string(),lines,0,s.nomovemode);
     if(abortRequested){
         // Truncated preview file is not a valid image
         std::error_code ec;
@@ -439,7 +441,20 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     statusMsgCb("Preview capture done");
     motor.enableProgress = true;
     mover.waitForFinished();
-    statusMsgCb("Done");
+    statusMsgCb("Done. " + exposureSummary());
+}
+
+// Exposure actually used by the last capture. Late lines got a longer exposure than the others
+QString MainWindow::exposureSummary(){
+    const LinearCamCtrl::ExposureStats es = ctrl->exposureStats;
+    QString text = QString("Exposure %1 ms").arg(es.periodUs / 1000.0,0,'f',1);
+    if(es.requestedUs > 0 && es.periodUs > es.requestedUs){
+        text += QString(" (min %1 ms)").arg(es.minPeriodUs / 1000.0,0,'f',1);
+    }
+    if(es.lateLines){
+        text += QString(", %1 late lines").arg(es.lateLines);
+    }
+    return text;
 }
 
 void MainWindow::imageCaptureBusyCb(bool busy){
@@ -480,6 +495,7 @@ void MainWindow::restoreSettings(ConfStore& config){
 
     ctrl->pnggamma = c["img"]["pnggamma"];
     ui->doubleSpinBox_gamma->setValue(ctrl->pnggamma);
+    ui->spinBox_exposuretime->setValue(c["img"]["exposurems"]);
 
     // Motor
     ctrl->slideMotorQt.motor->homeSG = c["mot"]["slidesg"];
@@ -501,6 +517,7 @@ void MainWindow::saveSettings(ConfStore& config){
     c["ccd"]["res"] = ui->comboBox_resolution->currentIndex();
     //c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     c["img"]["pnggamma"] = ctrl->pnggamma;
+    c["img"]["exposurems"] = ui->spinBox_exposuretime->value();
     config.saveSettings(CONFFILE);
 }
 

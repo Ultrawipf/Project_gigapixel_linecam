@@ -1622,7 +1622,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
               <item>
                <widget class="QLabel" name="label_4">
                 <property name="text">
-                 <string>Exposure+</string>
+                 <string>Exposure</string>
                 </property>
                </widget>
               </item>
@@ -1643,11 +1643,14 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
 }
 </string>
                 </property>
+                <property name="specialValueText">
+                 <string>min</string>
+                </property>
                 <property name="suffix">
                  <string>ms</string>
                 </property>
                 <property name="maximum">
-                 <number>10000</number>
+                 <number>1000</number>
                 </property>
                 <property name="singleStep">
                  <number>1</number>
