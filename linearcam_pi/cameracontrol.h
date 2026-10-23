@@ -12,6 +12,7 @@
 #include <thread>
 #include <functional>
 #include <optional>
+#include <atomic>
 
 #ifndef PNG_COMPRESSION_LEVEL
 #define PNG_COMPRESSION_LEVEL 0
@@ -66,7 +67,7 @@ protected:
     void runOffsetLines();
     //CCD_Ctrl ccd;
     std::thread processThread;
-    bool captureInProgress = false;
+    std::atomic<bool> captureInProgress = false; // Cleared by abortImageCapture() from other threads
 };
 
 #endif // CAMERACONTROL_H

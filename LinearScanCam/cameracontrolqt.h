@@ -113,7 +113,6 @@ public:
 
     static_assert(imageStartPosMM > 0,"Start pos < 0, horizontal resolution too high");
 
-    bool captureInProgress = false;
     const int previewDiv = 15;
     bool enableLineSignal = false;
     float stepperMoveSpeed = 800;

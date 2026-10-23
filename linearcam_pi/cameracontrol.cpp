@@ -8,6 +8,7 @@
 #include <imagehelpers.hpp>
 #include <fstream>
 #include <iterator>
+#include <stdexcept>
 
 #include <spng.h>
 
@@ -120,6 +121,9 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         int bonuslines = params.lineBuffers+extraskip;
         /* Creating an encoder context requires a flag */
         FILE* pngfile = fopen(filename.c_str(),"wb");
+        if(!pngfile){
+            throw std::runtime_error("Cannot open image file " + filename);
+        }
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
@@ -199,6 +203,9 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         const int extraskip = 3;
         /* Creating an encoder context requires a flag */
         FILE* file = fopen(filename.c_str(),"wb");
+        if(!file){
+            throw std::runtime_error("Cannot open image file " + filename);
+        }
         startCapture();
         captureInProgress = true;
         int bonuslines = params.lineBuffers+extraskip;
