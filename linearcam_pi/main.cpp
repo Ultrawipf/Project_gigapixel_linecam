@@ -43,7 +43,8 @@ struct TimingArgs : public argparse::Args {
     unsigned int &resdiv          = kwarg("r,res", "Resolution divider. 0-4 (Div0 to Div16). Default 3 = div8").set_default(3);
     int &delay             = kwarg("e,delay", "Extra sleep per line in us (current UI exposure)").set_default(0);
     int &compression       = kwarg("z,compress", "PNG compression level for .png output").set_default(0);
-    int &period            = kwarg("p,period", "Fixed line period in us (0 = off). Must exceed readout + processing").set_default(0);
+    int &period            = kwarg("p,period", "Line period = exposure in us, 0 = shortest. Raised to the measured minimum").set_default(0);
+    bool &freerun          = flag("free", "Start lines as fast as possible (old behaviour, exposure varies)");
     std::string &csv       = kwarg("c,csv", "Write per line timestamps to a csv file").set_default("");
     int &mm = kwarg("m", "Home, then move to position in mm before capturing. Image center is at 53").set_default(0);
     float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
@@ -230,6 +231,7 @@ int main(int argc, char* argv[]) {
 
         cam.pngCompressionLevel = t.compression;
         cam.linePeriodUs = t.period;
+        cam.fixedLinePeriod = !t.freerun;
         cam.recordTiming = true;
         cam.captureImage(t.output,t.lines,t.delay,std::nullopt,t.nomove);
         cam.recordTiming = false;
@@ -249,6 +251,9 @@ int main(int argc, char* argv[]) {
         printStats("TG interval",tg);
         printStats("Readout",read);
         printStats("Motor move",move);
+        const LinearCamCtrl::ExposureStats& es = cam.exposureStats;
+        printf("Exposure: period %d us (requested %d, shortest %d), %u fixed lines, %u late, max late %d us\n",
+               es.periodUs,es.requestedUs,es.minPeriodUs,es.lines,es.lateLines,es.maxLateUs);
 
         if(!t.csv.empty()){
             std::ofstream csv(t.csv);

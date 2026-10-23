@@ -90,6 +90,10 @@ void LinearCamCtrl::startCapture(bool nomovemode){
     }
     lineTimings.clear();
     lastLineStart.reset();
+    lineIndex = 0;
+    calibStarts.clear();
+    exposureStats = ExposureStats{};
+    exposureStats.requestedUs = linePeriodUs;
     ccd.startCapture();
     // clear ccd
     // Clear last buffer
@@ -253,12 +257,24 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     LineTiming timing;
     processThread = std::thread([&](){
         // Fixed line period: start each readout (TG) at an absolute time instead of sleeping after the processing
-        if(linePeriodUs > 0 && lastLineStart){
-            const auto deadline = *lastLineStart + std::chrono::microseconds(linePeriodUs);
+        const bool fixed = fixedLinePeriod && lineIndex >= periodCalibLines && lastLineStart && exposureStats.periodUs > 0;
+        if(fixed){
+            const auto deadline = *lastLineStart + std::chrono::microseconds(exposureStats.periodUs);
             std::this_thread::sleep_until(deadline - std::chrono::microseconds(LINEPERIOD_SPIN_US));
             while(std::chrono::steady_clock::now() < deadline){} // Spin the last part, sleep wakeup is too coarse
+            lastLineStart = std::chrono::steady_clock::now();
+            const int lateUs = std::chrono::duration_cast<std::chrono::microseconds>(*lastLineStart - deadline).count();
+            exposureStats.lines++;
+            if(lateUs > LINEPERIOD_LATE_US){
+                exposureStats.lateLines++;
+            }
+            exposureStats.maxLateUs = std::max(exposureStats.maxLateUs,lateUs);
+        }else{
+            lastLineStart = std::chrono::steady_clock::now();
+            if(lineIndex < periodCalibLines){
+                calibStarts.push_back(*lastLineStart);
+            }
         }
-        lastLineStart = std::chrono::steady_clock::now();
         if(recordTiming) timing.readStart = steadyNs();
         ccd.captureData(buf,tgperiod,tgperiod); // capture one line of raw data
         if(recordTiming) timing.readEnd = steadyNs();
@@ -278,6 +294,10 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     if(recordTiming){
         lineTimings.push_back(timing);
     }
+    lineIndex++;
+    if(lineIndex == periodCalibLines){
+        finishPeriodCalibration();
+    }
 
     // Maybe add delay to increase exposure time...
     if(usDelay){
@@ -294,6 +314,18 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     imageCorrection->addLineBuf(buf,tgperiod); // Add to next line buffer
     std::free(buf);
     return std::vector<ccdpixel>(line.begin() + params.validPixelBegin*3,line.begin() + params.validPixelEnd*3);
+}
+
+// The calibration lines ran as fast as possible, so their start intervals are the real cost of one line.
+// The first interval is skipped, it includes thread and cache warm up
+void LinearCamCtrl::finishPeriodCalibration(){
+    int64_t slowestUs = 0;
+    for(size_t i = 2;i<calibStarts.size();i++){
+        slowestUs = std::max<int64_t>(slowestUs,std::chrono::duration_cast<std::chrono::microseconds>(calibStarts[i] - calibStarts[i-1]).count());
+    }
+    exposureStats.minPeriodUs = slowestUs * LINEPERIOD_MARGIN + LINEPERIOD_EXTRA_US;
+    exposureStats.periodUs = std::max(exposureStats.minPeriodUs,linePeriodUs);
+    std::cout << "Line period " << exposureStats.periodUs << "us (requested " << linePeriodUs << "us, shortest " << exposureStats.minPeriodUs << "us)" << std::endl;
 }
 
 void LinearCamCtrl::moveLines(float lines){

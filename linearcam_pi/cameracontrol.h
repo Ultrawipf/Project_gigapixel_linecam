@@ -20,6 +20,15 @@
 #ifndef LINEPERIOD_SPIN_US
 #define LINEPERIOD_SPIN_US 200 // Busy wait before a fixed line start
 #endif
+#ifndef LINEPERIOD_MARGIN
+#define LINEPERIOD_MARGIN 1.05f // Shortest period = slowest calibration line * margin + extra
+#endif
+#ifndef LINEPERIOD_EXTRA_US
+#define LINEPERIOD_EXTRA_US 200
+#endif
+#ifndef LINEPERIOD_LATE_US
+#define LINEPERIOD_LATE_US 50 // A line starting later than this after its deadline counts as late
+#endif
 
 #ifndef PNG_COMPRESSION_LEVEL
 #define PNG_COMPRESSION_LEVEL 0
@@ -80,9 +89,24 @@ public:
     bool recordTiming = false;
     std::vector<LineTiming> lineTimings;
 
-    // > 0: start every line linePeriodUs after the previous one. Exposure then no longer depends on the processing time.
-    // Must be longer than readout + processing of one line, otherwise lines start late
+    // Exposure control. The exposure of a line is the time between two line starts (TG pulses).
+    // With fixedLinePeriod every line starts exactly one period after the previous one, so the exposure
+    // no longer depends on processing time. The first periodCalibLines lines of a capture run as fast as
+    // possible to measure the shortest possible period (readout, motor step, processing).
+    // The period used is max(linePeriodUs, measured * LINEPERIOD_MARGIN + LINEPERIOD_EXTRA_US). 0 = shortest.
+    bool fixedLinePeriod = true;
     int linePeriodUs = 0;
+    static constexpr uint32_t periodCalibLines = 6;
+
+    struct ExposureStats{
+        int requestedUs = 0;     // linePeriodUs at capture start, 0 = shortest
+        int minPeriodUs = 0;     // shortest safe period measured during the calibration lines
+        int periodUs = 0;        // period used, this is the exposure time
+        uint32_t lines = 0;      // lines started with the fixed period
+        uint32_t lateLines = 0;  // lines started more than LINEPERIOD_LATE_US after their deadline
+        int maxLateUs = 0;
+    };
+    ExposureStats exposureStats; // Of the current or last capture
 
     std::unique_ptr<CCD_ImageCorrection> imageCorrection;
     CCD_Ctrl& ccd;
@@ -92,6 +116,9 @@ protected:
     //CCD_Ctrl ccd;
     std::thread processThread;
     std::optional<std::chrono::steady_clock::time_point> lastLineStart;
+    uint32_t lineIndex = 0; // Lines since startCapture()
+    std::vector<std::chrono::steady_clock::time_point> calibStarts;
+    void finishPeriodCalibration();
     std::atomic<bool> captureInProgress = false; // Cleared by abortImageCapture() from other threads
 };
 
