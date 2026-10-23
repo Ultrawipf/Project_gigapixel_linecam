@@ -560,10 +560,16 @@ void MainWindow::updateGallerySelection(QListWidgetItem* item){
     std::string filename = item->data(Qt::UserRole).value<QString>().toStdString();
     fs::path fullresimgpath = imagepathfullres/filename;
     FILE* f = fopen(fullresimgpath.string().c_str(),"rb");
+    if(!f){
+        ui->label_gallery_info->setText("Info:\n\nFull resolution\nimage missing");
+        return;
+    }
     png::PngImageInfo imginfo = png::getPngInfo(f);
     fclose(f);
 
-    QString infotext = QString("Info:\n\n%1\nx\n%2\n\n%3b\n\n%4MB").arg(imginfo.ihdr.height).arg(imginfo.ihdr.width).arg(imginfo.ihdr.bit_depth).arg(std::round(((double)fs::file_size(fullresimgpath)/1000000.0)));
+    std::error_code ec;
+    uintmax_t filesize = fs::file_size(fullresimgpath,ec);
+    QString infotext = QString("Info:\n\n%1\nx\n%2\n\n%3b\n\n%4MB").arg(imginfo.ihdr.height).arg(imginfo.ihdr.width).arg(imginfo.ihdr.bit_depth).arg(ec ? 0.0 : std::round(((double)filesize/1000000.0)));
 
     ui->label_gallery_info->setText(infotext);
 
@@ -621,7 +627,13 @@ void MainWindow::on_radioButton_gallery_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_gallery);
     // Update free memory
-    fs::space_info spaceinfo = fs::space(imagepathfullres);
+    std::error_code ec;
+    fs::space_info spaceinfo = fs::space(imagepathfullres,ec);
+    if(ec){
+        ui->label_gallery_freespace->setText("Storage\nnot available");
+        ui->progressBar_freespace->setValue(0);
+        return;
+    }
     QString freespacetext = QString("Free:\n%1MB\nTotal:\n%2MB").arg(spaceinfo.free / 1000000).arg(spaceinfo.capacity / 1000000);
     ui->label_gallery_freespace->setText(freespacetext);
     ui->progressBar_freespace->setMaximum(spaceinfo.capacity/1000000);

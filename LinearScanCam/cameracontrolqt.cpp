@@ -170,6 +170,12 @@ fs::path CameraControllerQt::reencodePng(fs::path sourcefile,fs::path destfile,u
         fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
+        if(!infile || !outfile){
+            std::cout << "Cannot open " << (infile ? destfile : sourcefile).string() << '\n';
+            if(infile) fclose(infile);
+            if(outfile) fclose(outfile);
+            return fs::path();
+        }
         png::pngReencode(infile,outfile,downsample,compressionLevel,format,gammacorrect,progresscb);
         fclose(infile);
         fclose(outfile);
@@ -194,6 +200,12 @@ fs::path CameraControllerQt::reencodeRawToPng(fs::path sourcefile,fs::path destf
         fs::create_directories(destfile.parent_path());
         FILE* infile = fopen(sourcefile.string().c_str(),"rb");
         FILE* outfile = fopen(destfile.string().c_str(),"wb");
+        if(!infile || !outfile){
+            std::cout << "Cannot open " << (infile ? destfile : sourcefile).string() << '\n';
+            if(infile) fclose(infile);
+            if(outfile) fclose(outfile);
+            return fs::path();
+        }
         png::rawToPng(infile,outfile,height,width,sizeof(ccdpixel),pnggamma,compressionLevel,progresscb);
         fclose(infile);
         fclose(outfile);

@@ -24,7 +24,11 @@ void GalleryQt::showEvent( QShowEvent* event ) {
 void GalleryQt::updateContents(){
     this->clear();
     // Get images in path
-    for (const auto & entry : fs::directory_iterator(imagepathlowres)){
+    std::error_code ec;
+    if(!fs::is_directory(imagepathlowres,ec)){
+        return; // Nothing captured yet or storage missing
+    }
+    for (const auto & entry : fs::directory_iterator(imagepathlowres,ec)){
         if(entry.path().extension() == ".png"){
             QPixmap img(entry.path().c_str());
             img = img.transformed(QTransform().rotate(90));
