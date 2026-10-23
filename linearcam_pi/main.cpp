@@ -54,6 +54,9 @@ struct PioArgs : public argparse::Args {
     std::string &output    = kwarg("o,output", "Dump raw 32 bit words of all lines to a file").set_default("");
     std::string &dmactrl   = kwarg("d,dmactrl", "Override RX DMACTRL after setup, e.g. 0x80000108").set_default("");
     uint32_t &skip         = kwarg("k,skip", "Lines skipped by the lane statistics, the first lines after start are not settled").set_default(5);
+    float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
+    float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock").set_default(0.0f);
+    int &delay             = kwarg("t,delay", "Data SM cycles from clock edge to sample, -1 = as assembled").set_default(-1);
 };
 
 struct GammaArgs : public argparse::Args {
@@ -257,6 +260,9 @@ int main(int argc, char* argv[]) {
     if(args.pioargs.is_valid){
         // Raw readout diagnostics. Checks the 32 marker words, zero/repeated words, byte lane alignment and readout time
         PioArgs& t = args.pioargs;
+        if(t.freq > 0) CCD_Ctrl::ccdClockHz = t.freq;
+        CCD_Ctrl::dataClockHz = t.dataclk;
+        CCD_Ctrl::sampleDelay = t.delay;
         CCD_Ctrl ccd;
         LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
@@ -273,12 +279,14 @@ int main(int argc, char* argv[]) {
         ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
         const CCD_Parameters params = ccd.getCurParams();
         const uint32_t words = params.samplesPerLine / SAMPLESPERBUFFER;
+        std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (t.dataclk > 0 ? t.dataclk : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << t.delay << std::endl;
         std::cout << "clk_sys " << CCD_Ctrl::sysClockHz() << " Hz, res " << t.resdiv << ", " << words << " words/line, lines " << t.lines << std::endl;
         if(!t.dmactrl.empty()){
             const uint32_t ctrl = std::stoul(t.dmactrl,nullptr,0);
             printf("Setting RX DMACTRL 0x%08x\n",ctrl);
             ccd.setRxDmaCtrl(ctrl);
         }
+        printf("RX DMACTRL 0x%08x (low bits: FIFO DREQ threshold)\n",ccd.getRxDmaCtrl());
 
         std::vector<uint32_t> dump((size_t)words*t.lines,0xDEADBEEF);
         std::vector<double> readus;

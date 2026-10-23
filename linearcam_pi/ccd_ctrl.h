@@ -110,8 +110,14 @@ public:
     void sendCtrlDataArr(const uint32_t* buf,uint32_t len);
     uint32_t readReg(uint8_t adr);
 
+    // Readout timing, applied when the SMs are set up (constructor). Defaults: CCDCLOCK and the assembled program
+    static float ccdClockHz;  // CCD clock (ACLK)
+    static float dataClockHz; // Data SM clock, 0 = 18 x ccdClockHz
+    static int sampleDelay;   // Data SM cycles between clock edge and sample, -1 = as assembled
+
     // Diagnostics: overrides the RX DMACTRL register of the data SM (FIFO DREQ threshold) set by the kernel
     void setRxDmaCtrl(uint32_t ctrl);
+    uint32_t getRxDmaCtrl(); // Needs piolib with pio_sm_get_dmactrl (utils 5b380f9 or newer)
     static uint32_t sysClockHz();
 
     static CCD_Parameters getParamsFromResolution(CCD_Resolution res);

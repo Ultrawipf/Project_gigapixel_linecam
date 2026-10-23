@@ -30,9 +30,31 @@ bool gpio_get(uint32_t pin){
 }
 #endif
 
-#ifndef PIODATACLOCK 
+#ifndef PIODATACLOCK
 #define PIODATACLOCK 60000000.0f
 #endif
+
+float ccd_data_sm_freq = PIODATACLOCK;
+int ccd_sample_delay = -1;
+
+// Loads the data program. The sampling loop waits on both clock edges, ccd_sample_delay replaces
+// the delay of these two waits. Everything else stays as assembled, so the sample alignment only
+// changes when the delay is set explicitly
+static uint add_data_program(PIO pio){
+    static uint16_t instr[32];
+    pio_program_t prog = ccddata_program;
+    for(uint i = 0; i < prog.length; i++){
+        instr[i] = ccddata_program.instructions[i];
+    }
+    if(ccd_sample_delay >= 0){
+        const uint waits[2] = {ccddata_wrap_target, ccddata_wrap_target+2};
+        for(uint i = 0; i < 2; i++){
+            instr[waits[i]] = (instr[waits[i]] & ~0x0F00) | ((ccd_sample_delay & 0x0F) << 8); // Delay bits 11:8, side set bit 12
+        }
+    }
+    prog.instructions = instr;
+    return pio_add_program(pio, &prog);
+}
 
 // Constants
 // Startup commands sampled from scanner before first calibration sampling
@@ -97,11 +119,11 @@ bool setup_data(SM_def *smdef,uint gpiobase){
     pio_sm_config_xfer(smdef->pio, smdef->sm, PIO_DIR_FROM_SM, TRANSFERSIZE*4, 2);
     #endif
     if(smdef->offset == SMDEF_INVALID_VAL){
-        smdef->offset = pio_add_program(smdef->pio, &ccddata_program);
+        smdef->offset = add_data_program(smdef->pio);
     }
     
     // printf("Loaded ccd data at %d, using sm %d, gpio %d\n", smdef->offset, smdef->sm, gpiobase);
-    ccddata_program_init(smdef->pio, smdef->sm, smdef->offset, gpiobase, PIODATACLOCK); // 60000000
+    ccddata_program_init(smdef->pio, smdef->sm, smdef->offset, gpiobase, ccd_data_sm_freq); // 60000000
     if(ACLKPIN != gpiobase+8){ // If clock out is not the same pin as clock in initialize clock in here
         pio_gpio_init(smdef->pio, gpiobase+8);
     }

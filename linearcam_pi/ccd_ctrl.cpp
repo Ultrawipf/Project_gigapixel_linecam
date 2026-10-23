@@ -42,8 +42,14 @@ CCD_Ctrl::~CCD_Ctrl()
     setClock(false);
 }
 
+float CCD_Ctrl::ccdClockHz = CCDCLOCK;
+float CCD_Ctrl::dataClockHz = 0;
+int CCD_Ctrl::sampleDelay = -1;
+
 void CCD_Ctrl::setupSm(){
-    setup_clock(&sm_clock,CCDCLOCK,ACLKPIN);
+    ccd_data_sm_freq = dataClockHz > 0 ? dataClockHz : ccdClockHz*18.0f;
+    ccd_sample_delay = sampleDelay;
+    setup_clock(&sm_clock,ccdClockHz,ACLKPIN);
     setup_data(&sm_data,DATABASEPIN);
     pio_sm_clkdiv_restart(sm_clock.pio,sm_clock.sm);
     pio_sm_clkdiv_restart(sm_data.pio,sm_data.sm);
@@ -285,10 +291,17 @@ void CCD_Ctrl::setRxDmaCtrl(uint32_t ctrl){
     pio_sm_set_dmactrl(sm_data.pio,sm_data.sm,false,ctrl);
 }
 
+uint32_t CCD_Ctrl::getRxDmaCtrl(){
+    return pio_sm_get_dmactrl(sm_data.pio,sm_data.sm,false);
+}
+
 uint32_t CCD_Ctrl::sysClockHz(){
     return clock_get_hz(clk_sys);
 }
 #else
+float CCD_Ctrl::ccdClockHz = 5000000.0f;
+float CCD_Ctrl::dataClockHz = 0;
+int CCD_Ctrl::sampleDelay = -1;
 CCD_Ctrl::CCD_Ctrl(){};
 CCD_Ctrl::~CCD_Ctrl(){};
 void CCD_Ctrl::setClock(bool enable){};
@@ -308,6 +321,7 @@ void CCD_Ctrl::sendCtrlData(uint32_t data){};
 void CCD_Ctrl::sendCtrlDataArr(const uint32_t* buf,uint32_t len){};
 uint32_t CCD_Ctrl::readReg(uint8_t adr){return 0;};
 void CCD_Ctrl::setRxDmaCtrl(uint32_t ctrl){};
+uint32_t CCD_Ctrl::getRxDmaCtrl(){return 0;};
 uint32_t CCD_Ctrl::sysClockHz(){return 0;};
 
 uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){curRes = res; return 0;};
