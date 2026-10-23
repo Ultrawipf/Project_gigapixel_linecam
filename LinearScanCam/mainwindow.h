@@ -86,6 +86,11 @@ private slots:
     void on_radioButton_linecam_clicked();
 
 private:
+    bool tryBeginOperation(const QString& name);
+    void endOperation();
+    void updateControlsEnabled();
+    void runMotorOperation(const QString& name,std::function<QFuture<void>()> start,const QString& doneMsg = QString());
+
     void runJob(std::function<void()> job);
     void captureImageJob(CaptureSettings s,fs::path newimagename,fs::path recordimagename,int pngCompressionOvr);
     void capturePreviewJob(CaptureSettings s);
@@ -97,6 +102,12 @@ private:
     CameraControllerQt *ctrl;
 
     QTimer progressbarHideTimer;
+
+    // Operation guard state. GUI thread only
+    bool cameraReady = false;
+    bool motorBusy = false;
+    bool operationActive = false;
+    QString activeOperation;
 
     float curMovementSize = 5;
 

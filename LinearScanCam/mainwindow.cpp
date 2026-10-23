@@ -33,8 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar_scan->setVisible(false);
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
-    ui->frame_mode->setEnabled(false);
-    ui->groupBox_camactions->setEnabled(false);
+    updateControlsEnabled(); // Everything disabled until the camera is ready
 
     qDebug() << "Startpos:" << ctrl->imageStartPosMM << "End:" << ctrl->imageEndPosMM << "Center:" << ctrl->imageCenterPosMM;
 
@@ -45,8 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
     progressbarHideTimer.setInterval(250);
     connect(ctrl, &CameraControllerQt::progress,this,&MainWindow::progressCb,Qt::QueuedConnection);
 
-    // Disable debug controls when motor running
-    connect(&ctrl->slideMotorQt, &MotorControlQt::idle,ui->groupBox_motorcontrol_debug,&QGroupBox::setEnabled);
+    // Motor controls are enabled/disabled by updateControlsEnabled()
     // Motor position debug
     connect(&ctrl->slideMotorQt, &MotorControlQt::position,ui->doubleSpinBox_motorpos_debug,&QDoubleSpinBox::setValue);
     connect(&ctrl->slideMotorQt, &MotorControlQt::position,ui->doubleSpinBox_motorpos_preview,&QDoubleSpinBox::setValue);
@@ -60,7 +58,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButton_debug_right,&QPushButton::clicked,this,&MainWindow::moveRight);
     connect(ui->pushButton_preview_left,&QPushButton::clicked,this,&MainWindow::moveLeft);
     connect(ui->pushButton_preview_right,&QPushButton::clicked,this,&MainWindow::moveRight);
-    connect(ui->pushButton_preview_center,&QPushButton::clicked,this,[this](){ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);});
+    connect(ui->pushButton_preview_center,&QPushButton::clicked,this,[this](){
+        runMotorOperation("Moving sensor",[this](){return ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);});
+    });
     // Dist
     ui->doubleSpinBox_debug_dist->setValue(this->curMovementSize);
     ui->doubleSpinBox_preview_dist->setValue(this->curMovementSize);
@@ -131,11 +131,57 @@ void MainWindow::statusMsgCb(QString status){
 }
 
 void MainWindow::busyCb(bool busy){
-    //ui->centralwidget->setEnabled(!busy);
-    bool enabled = !busy;
-    // Disable controls when busy
+    motorBusy = busy;
+    updateControlsEnabled();
+}
+
+// Controls that can start motor movements or captures are only enabled when nothing is running
+void MainWindow::updateControlsEnabled(){
+    const bool enabled = cameraReady && !operationActive && !motorBusy;
     ui->groupBox_camactions->setEnabled(enabled);
     ui->frame_mode->setEnabled(enabled);
+    ui->groupBox_previewctrl->setEnabled(enabled);
+    ui->groupBox_motorcontrol_debug->setEnabled(enabled);
+}
+
+// Only one operation (capture, preview, motor move...) may run at a time.
+// Every entry point (UI and external buttons) must go through this. GUI thread only
+bool MainWindow::tryBeginOperation(const QString& name){
+    if(!cameraReady){
+        statusMsgCb("Camera not ready");
+        return false;
+    }
+    if(operationActive){
+        qDebug() << "Rejected" << name << "while busy with" << activeOperation;
+        statusMsgCb("Busy: " + activeOperation);
+        return false;
+    }
+    operationActive = true;
+    activeOperation = name;
+    updateControlsEnabled();
+    return true;
+}
+
+void MainWindow::endOperation(){
+    operationActive = false;
+    activeOperation.clear();
+    updateControlsEnabled();
+}
+
+// Starts a motor movement as an operation. doneMsg is shown when it finished
+void MainWindow::runMotorOperation(const QString& name,std::function<QFuture<void>()> start,const QString& doneMsg){
+    if(!tryBeginOperation(name)){
+        return;
+    }
+    statusMsgCb(name + "...");
+    // Continuation taking the future runs even if the move failed
+    start().then(this,[this,doneMsg](QFuture<void> f){
+        Q_UNUSED(f);
+        endOperation();
+        if(!doneMsg.isEmpty()){
+            statusMsgCb(doneMsg);
+        }
+    });
 }
 // Runs a capture/processing job on the single job thread. Exceptions are reported in the status line
 void MainWindow::runJob(std::function<void()> job){
@@ -150,6 +196,7 @@ void MainWindow::runJob(std::function<void()> job){
             statusMsgCb("Error: unknown failure");
         }
         ctrl->slideMotorQt.enableProgress = true;
+        runOnGui([this](){endOperation();});
     });
 }
 
@@ -161,12 +208,15 @@ void MainWindow::showImageFile(fs::path file){
 
 void MainWindow::savePreview(){
     qDebug() << "Save preview";
+    if(!tryBeginOperation("Saving preview")){
+        return;
+    }
     ui->pushButton_savepreview->setEnabled(false);
-    fs::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/"img.png"));
-    fs::path lowresfile = imagepathlowres/(newfile.filename());
     uint32_t downsample = baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines;
 
-    runJob([this,newfile,lowresfile,downsample](){
+    runJob([this,downsample](){
+        fs::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/"img.png"));
+        fs::path lowresfile = imagepathlowres/(newfile.filename());
         try{
             fs::create_directories(newfile.parent_path());
             fs::rename(previewFile, newfile); // Move file
@@ -206,16 +256,19 @@ void MainWindow::captureImage(){
         // ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,500,5,&pool);
         // ui->groupBox_camactions->setVisible(true);
     }
+    if(!tryBeginOperation("Capturing image")){
+        return;
+    }
     statusMsgCb("Starting image capture...");
     CaptureSettings s = readCaptureSettings((CCD_Resolution)ui->comboBox_resolution->currentIndex());
-    fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
     fs::path recordimagename = rawTempFile;
 
     int pngCompressionOvr = pngCompression;
     if((unsigned int)s.res < 3){
         pngCompressionOvr = 0; // No compression for high res
     }
-    runJob([this,s,newimagename,recordimagename,pngCompressionOvr](){
+    runJob([this,s,recordimagename,pngCompressionOvr](){
+        fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
         captureImageJob(s,newimagename,recordimagename,pngCompressionOvr);
     });
 }
@@ -276,6 +329,9 @@ void MainWindow::capturePreviewImage(){
         return;
     }
 
+    if(!tryBeginOperation("Capturing preview")){
+        return;
+    }
     statusMsgCb("Starting preview capture...");
     ui->pushButton_savepreview->setEnabled(false);
     CaptureSettings s = readCaptureSettings(CCD_Resolution::Preview); // Lowest resolution
@@ -392,7 +448,8 @@ void MainWindow::progressCb(int progress){
 }
 
 void MainWindow::setReady(bool ready){
-    ui->frame_mode->setEnabled(ready);
+    cameraReady = ready;
+    updateControlsEnabled();
     if(ready){
         ui->label_boot1->setText("Camera ready");
         ui->radioButton_linearscan->click();
@@ -408,11 +465,11 @@ void MainWindow::on_radioButton_mode_debug_clicked()
 
 void MainWindow::on_radioButton_mode_preview_clicked()
 {
-    statusMsgCb("Moving sensor...");
     ui->stackedWidget->setCurrentWidget(ui->page_preview);
     //ui->progressBar_scan->setVisible(false);
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-    motfut.then([this](){statusMsgCb("Live preview mode");});
+    runMotorOperation("Moving sensor",[this](){
+        return ctrl->slideMotorQt.moveToMM(ctrl->previewCamCenterMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    },"Live preview mode");
 }
 
 void MainWindow::changeMovementSize(double v){
@@ -428,7 +485,7 @@ void MainWindow::changeMovementSize(double v){
 // Debug functions:
 void MainWindow::home()
 {
-    ctrl->slideMotorQt.home();
+    runMotorOperation("Homing",[this](){return ctrl->slideMotorQt.home();},"Homed");
 
 }
 
@@ -453,13 +510,13 @@ void MainWindow::updateGallerySelection(QListWidgetItem* item){
 
 void MainWindow::moveLeft()
 {
-    ctrl->slideMotorQt.moveMM(-curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    runMotorOperation("Moving",[this](){return ctrl->slideMotorQt.moveMM(-curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);},"Ready");
 }
 
 
 void MainWindow::moveRight()
 {
-    ctrl->slideMotorQt.moveMM(curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    runMotorOperation("Moving",[this](){return ctrl->slideMotorQt.moveMM(curMovementSize,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);},"Ready");
 }
 
 
@@ -473,10 +530,10 @@ void MainWindow::on_pushButton_quit_clicked()
 void MainWindow::on_radioButton_linearscan_clicked()
 {
     ui->horizontalSlider_imagewidth2->setVisible(true);
-    statusMsgCb("Moving sensor...");
     ui->stackedWidget->setCurrentWidget(ui->page_graphic);
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-    motfut.then([this](){statusMsgCb("Ready");});
+    runMotorOperation("Moving sensor",[this](){
+        return ctrl->slideMotorQt.moveToMM(ctrl->imageStartPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    },"Ready");
     ui->groupBox_camactions->setVisible(true);
 }
 
@@ -513,11 +570,11 @@ void MainWindow::on_radioButton_gallery_clicked()
 
 void MainWindow::on_radioButton_linecam_clicked()
 {
-    statusMsgCb("Moving sensor...");
     ui->horizontalSlider_imagewidth2->setVisible(false);
     ui->stackedWidget->setCurrentWidget(ui->page_graphic);
-    auto motfut = ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-    motfut.then([this](){statusMsgCb("Ready");});
+    runMotorOperation("Moving sensor",[this](){
+        return ctrl->slideMotorQt.moveToMM(ctrl->imageCenterPosMM,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    },"Ready");
     ui->groupBox_camactions->setVisible(true);
 }
 
