@@ -91,7 +91,7 @@ void CameraControllerQt::captureCallback(const std::vector<ccdpixel>& line){
 }
 // Scan an image and save to file
 // TODO: Also return lines for a preview image
-QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32_t lines,int usDelay,QThreadPool *pool,bool nomovemode){
+void CameraControllerQt::captureImageBlocking(std::string filename,uint32_t lines,int usDelay,bool nomovemode){
     curLineNum = 0;
     curLines = lines;
     auto params = LinearCamCtrl::ccd.getCurParams();
@@ -102,23 +102,17 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     qDebug() << "Preview skip:" << previewSkip;
 
     qDebug() << "Capture image to file: "<< filename.c_str() << " lines " << lines;
-    // emit busy(true);
-
-    QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
-    // Connect start and end functions
-    connect(watcher,&QFutureWatcher<void>::started,[this](){emit busy(true);});
-    connect(watcher,&QFutureWatcher<void>::finished,[this](){emit busy(false);emit imageCaptureDone();});
-    // Start task
+    auto motorlock = slideMotorQt.lock(); // captureImage() moves the slide directly
+    emit busy(true);
     auto callbackfunc = std::bind(&CameraControllerQt::captureCallback,this,std::placeholders::_1);
-    QFuture<void> future = QtConcurrent::run(pool,&LinearCamCtrl::captureImage,this,filename,lines,usDelay,(callbackfunc),nomovemode);
-    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
-    watcher->setFuture(future);
-
-
-    //LinearCamCtrl::captureImage(filename,lines,usDelay);
-    //emit busy(false);
-    return future;
+    try{
+        LinearCamCtrl::captureImage(filename,lines,usDelay,callbackfunc,nomovemode);
+    }catch(...){
+        emit busy(false);
+        throw;
+    }
+    emit busy(false);
+    emit imageCaptureDone();
 }
 
 void CameraControllerQt::abortCapture(){

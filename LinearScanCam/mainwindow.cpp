@@ -137,37 +137,67 @@ void MainWindow::busyCb(bool busy){
     ui->groupBox_camactions->setEnabled(enabled);
     ui->frame_mode->setEnabled(enabled);
 }
+// Runs a capture/processing job on the single job thread. Exceptions are reported in the status line
+void MainWindow::runJob(std::function<void()> job){
+    (void)QtConcurrent::run(&pool,[this,job](){
+        try{
+            job();
+        }catch(const std::exception& e){
+            qDebug() << "Job failed:" << e.what();
+            statusMsgCb(QString("Error: ") + e.what());
+        }catch(...){
+            qDebug() << "Job failed";
+            statusMsgCb("Error: unknown failure");
+        }
+        ctrl->slideMotorQt.enableProgress = true;
+    });
+}
+
+// Thread safe. Loads the image in the calling thread and displays it on the GUI thread
+void MainWindow::showImageFile(fs::path file){
+    QImage img(QString::fromStdString(file.string()));
+    runOnGui([this,img](){ui->graphicsView->showFullImage(img);});
+}
+
 void MainWindow::savePreview(){
     qDebug() << "Save preview";
     ui->pushButton_savepreview->setEnabled(false);
-    std::filesystem::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/"img.png"));
+    fs::path newfile = ctrl->getUnusedImageName(fs::path(imagepathfullres/"img.png"));
     fs::path lowresfile = imagepathlowres/(newfile.filename());
-    fs::rename(previewFile, newfile); // Move file
-    auto future = ctrl->reencodePngFuture(newfile,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompression,SPNG_FMT_RGB8,true);
-//ctrl->moveTempImage(previewFile,imagepathfullres);
+    uint32_t downsample = baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines;
 
-    auto done = [this](fs::path newpath){
-        QString infotext;
-        qDebug() << "Saving preview";
-        if(newpath.has_filename()){
-            infotext = QString("Saved image to: ") + QString(newpath.filename().c_str());
-
-        }else{
-            infotext = "Cannot save file...";
+    runJob([this,newfile,lowresfile,downsample](){
+        try{
+            fs::create_directories(newfile.parent_path());
+            fs::rename(previewFile, newfile); // Move file
+        }catch(...){
+            runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);}); // Preview is still there
+            throw;
         }
-        this->ui->label_status->setText(infotext);
-        //QToolTip::showText(ui->pushButton_savepreview->pos(),infotext, ui->pushButton_savepreview,{},1000);
-    };
-    future.then(this,done); // Run on the GUI thread
+        fs::path newpath = ctrl->reencodePng(newfile,lowresfile,downsample,pngCompression,SPNG_FMT_RGB8,true);
+        if(newpath.has_filename()){
+            statusMsgCb(QString("Saved image to: ") + QString::fromStdString(newpath.filename().string()));
+        }else{
+            statusMsgCb("Cannot save file...");
+        }
+    });
+}
 
+// Reads everything a capture needs from the widgets. GUI thread only
+MainWindow::CaptureSettings MainWindow::readCaptureSettings(CCD_Resolution res){
+    CaptureSettings s;
+    s.res = res;
+    s.gainOfs = gainOfsFromUi();
+    s.nomovemode = ui->radioButton_linecam->isChecked();
+    s.exposureUs = ui->spinBox_exposuretime->value()*1000;
+    s.delayS = ui->spinBox_delay->value();
+    s.widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
+    if(s.nomovemode) s.widthscale *= nomovemult;
+    return s;
 }
 
 void MainWindow::captureImage(){
     qDebug() << "SHUTTER";
-
-    bool nomovemode = ui->radioButton_linecam->isChecked();
-    int exposuretime = ui->spinBox_exposuretime->value();
-    int delay = ui->spinBox_delay->value(); // Widgets must only be read on the GUI thread
 
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         ui->radioButton_linearscan->click();
@@ -177,77 +207,68 @@ void MainWindow::captureImage(){
         // ui->groupBox_camactions->setVisible(true);
     }
     statusMsgCb("Starting image capture...");
-    CCD_Resolution res = (CCD_Resolution)ui->comboBox_resolution->currentIndex();
-    ctrl->ccd->setResolution(res);
-    applyCcdParams();
-    statusMsgCb("Moving to start pos...");
-    float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
-    if(nomovemode) widthscale *= nomovemult;
-
+    CaptureSettings s = readCaptureSettings((CCD_Resolution)ui->comboBox_resolution->currentIndex());
     fs::path newimagename = ctrl->getUnusedImageName(imagepathfullres/"img.png");
-    moveBackPos = ctrl->slideMotorQt.getCurPos();
     fs::path recordimagename = rawTempFile;
 
     int pngCompressionOvr = pngCompression;
-    if((unsigned int)res < 3){
+    if((unsigned int)s.res < 3){
         pngCompressionOvr = 0; // No compression for high res
     }
+    runJob([this,s,newimagename,recordimagename,pngCompressionOvr](){
+        captureImageJob(s,newimagename,recordimagename,pngCompressionOvr);
+    });
+}
 
-    auto updateposfunc = [this](){
-        moveBackPos = ctrl->slideMotorQt.getCurPos();
-    };
-    auto capturefunc = [this,widthscale,recordimagename,nomovemode,exposuretime](){
-        statusMsgCb("Capturing image...");
-        ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(recordimagename,(ctrl->fullResLines / ctrl->ccd->getCurParams().moveLines)*widthscale,exposuretime*1000,&pool,nomovemode).waitForFinished();
-    };
-    auto finishedfunc = [this,newimagename,recordimagename,widthscale,pngCompressionOvr](){
-            statusMsgCb("Processing image...");
-            auto params = ctrl->ccd->getCurParams();
-            auto mover = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel); // Move back
-            auto pngfuture = ctrl->reencodeRawToPngFuture(recordimagename,newimagename,(ctrl->fullResLines / params.moveLines)*widthscale,params.validPixelEnd - params.validPixelBegin,3);
+// Full image capture sequence. Runs on the job thread
+void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::path recordimagename,int pngCompressionOvr){
+    MotorControlQt& motor = ctrl->slideMotorQt;
+    // CCD setup sends hundreds of control words. Keep it off the GUI thread
+    ctrl->ccd->setResolution(s.res);
+    ctrl->ccd->setRgbGainOfs(s.gainOfs);
+    const CCD_Parameters params = ctrl->ccd->getCurParams();
+    const uint32_t lines = (ctrl->fullResLines / params.moveLines)*s.widthscale;
 
-            pngfuture.then([this,newimagename,recordimagename,pngCompressionOvr](fs::path img){
-                fs::path lowresfile = imagepathlowres/(newimagename.filename());
-                // delete temp file
-                fs::remove(recordimagename);
-                statusMsgCb("Processing preview...");
-                auto pngfuturepreview = ctrl->reencodePngFuture(img,lowresfile,baseDownsamplePreview-ctrl->ccd->getCurParams().moveLines,pngCompressionOvr,SPNG_FMT_RGB8,true,&pool);
-                pngfuturepreview.waitForFinished();
-                statusMsgCb("Preview Done");
-                QImage previewImg(lowresfile.c_str());
-                QMetaObject::invokeMethod(ui->graphicsView,"showFullImage" ,Qt::QueuedConnection,Q_ARG(QImage,previewImg));
-            });
-
-            pngfuture.waitForFinished();
-            ctrl->slideMotorQt.enableProgress = true;
-            statusMsgCb("Moving back...");
-            mover.waitForFinished();
-            statusMsgCb("Done");
-    };
-    // Do the stuff
-    auto params = ctrl->ccd->getCurParams();
     float scanstartpos = ctrl->imageCenterPosMM;
-    if(!nomovemode){
-        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM;
+    if(!s.nomovemode){
+        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-s.widthscale) + ctrl->imageStartPosMM;
         scanstartpos -= (params.lineBuffers * params.moveLines * ctrl->ccd->lineDistMM);
     }
-    ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
-    .then([delay](){QThread::sleep(delay);})
-    .then(updateposfunc)
+    statusMsgCb("Moving to start pos...");
+    motor.moveToMMBlocking(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    QThread::sleep(s.delayS);
+    const float moveBackPos = motor.getCurPos();
+
     // Capture the image
-    .then(capturefunc)
-    // Move back and show image
-    .then(finishedfunc);
-    ctrl->slideMotorQt.enableProgress = true;
+    statusMsgCb("Capturing image...");
+    motor.enableProgress = false;
+    ctrl->captureImageBlocking(recordimagename.string(),lines,s.exposureUs,s.nomovemode);
+
+    // Move back while encoding and show image
+    statusMsgCb("Processing image...");
+    auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    fs::path img = ctrl->reencodeRawToPng(recordimagename,newimagename,lines,params.validPixelEnd - params.validPixelBegin,3);
+    std::error_code ec;
+    fs::remove(recordimagename,ec); // delete temp file
+    if(img.empty()){
+        mover.waitForFinished();
+        throw std::runtime_error("Encoding image failed");
+    }
+
+    statusMsgCb("Processing preview...");
+    fs::path lowresfile = imagepathlowres/(newimagename.filename());
+    ctrl->reencodePng(img,lowresfile,baseDownsamplePreview-params.moveLines,pngCompressionOvr,SPNG_FMT_RGB8,true);
+    statusMsgCb("Preview Done");
+    showImageFile(lowresfile);
+
+    motor.enableProgress = true;
+    statusMsgCb("Moving back...");
+    mover.waitForFinished();
+    statusMsgCb("Done");
 }
 
 void MainWindow::capturePreviewImage(){
-    //static QThreadPool pool;
-
     qDebug() << "PREVIEW";
-    bool nomovemode = ui->radioButton_linecam->isChecked();
-    int exposuretime = ui->spinBox_exposuretime->value();
 
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         statusMsgCb("Preview mode");
@@ -255,69 +276,49 @@ void MainWindow::capturePreviewImage(){
         return;
     }
 
-
     statusMsgCb("Starting preview capture...");
     ui->pushButton_savepreview->setEnabled(false);
-    // Set preview parameters
+    CaptureSettings s = readCaptureSettings(CCD_Resolution::Preview); // Lowest resolution
+    runJob([this,s](){capturePreviewJob(s);});
+}
 
-    float widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
-    if(nomovemode) widthscale *= nomovemult;
-    ctrl->ccd->setResolution(CCD_Resolution::Preview); // Lowest resolution
-    applyCcdParams(); // Set gains
-    CCD_Parameters params =  ctrl->ccd->getCurParams();
+// Preview capture sequence. Runs on the job thread
+void MainWindow::capturePreviewJob(CaptureSettings s){
+    MotorControlQt& motor = ctrl->slideMotorQt;
+    ctrl->ccd->setResolution(s.res);
+    ctrl->ccd->setRgbGainOfs(s.gainOfs);
+    const CCD_Parameters params = ctrl->ccd->getCurParams();
+    const uint32_t lines = (ctrl->fullResLines / params.moveLines)*s.widthscale;
+    qDebug() << "scale" << s.widthscale << "lines" << lines;
 
-    uint32_t lines = (ctrl->fullResLines / params.moveLines)*widthscale;
-    qDebug() << "scale" << widthscale << "lines" << lines;
-    statusMsgCb("Moving to start pos...");
-    moveBackPos = ctrl->slideMotorQt.getCurPos();
-
-    auto updateposfunc = [this](){
-        moveBackPos = ctrl->slideMotorQt.getCurPos();
-        //qDebug() << "Curpos" << moveBackPos;
-    };
-
-    auto captureimagefunc = [this,lines,nomovemode,exposuretime](){
-        statusMsgCb("Capturing preview...");
-        qDebug() << "Capture image" << lines;
-        ctrl->slideMotorQt.enableProgress = false;
-        ctrl->captureImageFuture(previewFile,lines,exposuretime*1000,&pool,nomovemode).waitForFinished();
-    };
-
-
-    auto previewDone = [this](){
-        //qDebug() << "Move back" << moveBackPos;
-        runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);});
-        auto movefut = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-        // Show preview
-        //ui->progressBar_scan->setVisible(false); // Hide progress bar quickly
-        qDebug() << "Show image";
-        QImage previewImg(previewFile.c_str());
-        //QMetaObject::invokeMethod(ui->graphicsView,"showFullImage",previewImg,Qt::QueuedConnection);
-        QMetaObject::invokeMethod(ui->graphicsView,"showFullImage" ,Qt::QueuedConnection,Q_ARG(QImage,previewImg));
-        //ui->graphicsView->showFullImage(previewImg);
-        statusMsgCb("Preview capture done");
-        ctrl->slideMotorQt.enableProgress = true;
-        movefut.waitForFinished();
-        statusMsgCb("Done");
-
-    };
-    // Do the stuff
     float scanstartpos = ctrl->imageCenterPosMM;
-    if(!nomovemode){
-        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-widthscale) + ctrl->imageStartPosMM;
+    if(!s.nomovemode){
+        scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-s.widthscale) + ctrl->imageStartPosMM;
     }
-    ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
-    .then(updateposfunc)
-    .then(captureimagefunc)
-    .then(previewDone);
-    ctrl->slideMotorQt.enableProgress = true;
+    statusMsgCb("Moving to start pos...");
+    motor.moveToMMBlocking(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    const float moveBackPos = motor.getCurPos();
+
+    statusMsgCb("Capturing preview...");
+    motor.enableProgress = false;
+    ctrl->captureImageBlocking(previewFile.string(),lines,s.exposureUs,s.nomovemode);
+
+    runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);});
+    auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+    // Show preview
+    showImageFile(previewFile);
+    statusMsgCb("Preview capture done");
+    motor.enableProgress = true;
+    mover.waitForFinished();
+    statusMsgCb("Done");
 }
 
 void MainWindow::imageCaptureBusyCb(bool busy){
 
 }
 
-void MainWindow::applyCcdParams(){
+// Gains from the widgets, offsets from the config. GUI thread only
+CCD_GainOfs MainWindow::gainOfsFromUi(){
     CCD_GainOfs ofsGains = ctrl->ccd->getCurGainOfs();
     double scaler = ui->doubleSpinBox_commongain->value();
     ofsGains.bGain = ui->spinBox_bgain->value() * scaler;
@@ -328,8 +329,7 @@ void MainWindow::applyCcdParams(){
     ofsGains.rOfs = c["ccd"]["rofs"];
     ofsGains.gOfs = c["ccd"]["gofs"];
     ofsGains.bOfs = c["ccd"]["bofs"];
-    ctrl->ccd->setRgbGainOfs(ofsGains);
-    //ctrl->ccd->setResolution
+    return ofsGains;
 }
 
 void MainWindow::restoreSettings(ConfStore& config){
@@ -339,7 +339,7 @@ void MainWindow::restoreSettings(ConfStore& config){
     ui->spinBox_ggain->setValue(c["ccd"]["ggain"]);
     ui->spinBox_rgain->setValue(c["ccd"]["rgain"]);
     ui->comboBox_resolution->setCurrentIndex(c["ccd"]["res"]);
-    applyCcdParams();
+    // Gains are sent to the CCD at the start of each capture
 
     imagepath.assign(c["imagepath"]);
     imagepathfullres.assign(c["imagepathfullres"]);

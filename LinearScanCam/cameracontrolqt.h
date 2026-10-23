@@ -110,7 +110,8 @@ public:
     PcfIoQt* pcfio;
 
 
-    QFuture<void> captureImageFuture(std::string filename,uint32_t lines,int usDelay=0,QThreadPool *pool = QThreadPool::globalInstance(),bool nomovemode = false);
+    // Scans an image into filename. Blocks until done, call from a worker thread. Holds the motor lock while scanning
+    void captureImageBlocking(std::string filename,uint32_t lines,int usDelay=0,bool nomovemode = false);
     void abortCapture();
 
     fs::path moveTempImage(fs::path sourcefile,fs::path destpath);

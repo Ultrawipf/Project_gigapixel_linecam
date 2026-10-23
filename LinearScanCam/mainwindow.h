@@ -4,6 +4,7 @@
 #include <QMainWindow>
 
 #include <QPromise>
+#include <functional>
 #include "cameracontrolqt.h"
 #include "pcfioqt.h"
 #include "confstore.h"
@@ -27,7 +28,18 @@ public:
 
     void restoreSettings(ConfStore& config);
     void saveSettings(ConfStore& config);
-    void applyCcdParams();
+    // Values read from the UI on the GUI thread before a job starts
+    struct CaptureSettings{
+        CCD_Resolution res = CCD_Resolution::Preview;
+        CCD_GainOfs gainOfs;
+        bool nomovemode = false;
+        int exposureUs = 0;
+        int delayS = 0;
+        float widthscale = 1;
+    };
+
+    CCD_GainOfs gainOfsFromUi();
+    CaptureSettings readCaptureSettings(CCD_Resolution res);
     void updateResEstimate();
 
     // Runs f on the GUI thread. Direct call if already on it, queued otherwise
@@ -74,6 +86,11 @@ private slots:
     void on_radioButton_linecam_clicked();
 
 private:
+    void runJob(std::function<void()> job);
+    void captureImageJob(CaptureSettings s,fs::path newimagename,fs::path recordimagename,int pngCompressionOvr);
+    void capturePreviewJob(CaptureSettings s);
+    void showImageFile(fs::path file);
+
     Ui::MainWindow *ui;
 
     //QThread *camerathread;
@@ -84,8 +101,6 @@ private:
     float curMovementSize = 5;
 
     uint8_t pngCompression = 1;
-
-    float moveBackPos = 0; // Store position before capturing for use in lambdas
 
 
     fs::path imagepath = "./";
