@@ -126,6 +126,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines,16,pnggamma,PNG_COMPRESSION_LEVEL);
 
         std::thread pngthread;
+        std::vector<ccdpixel> pngline; // Line owned by the encoder thread. Must outlive the thread
         startCapture();
         captureInProgress = true;
         for(int line = 0;line < lines+bonuslines && captureInProgress;line++){
@@ -140,12 +141,15 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             if(pngthread.joinable()){
                 pngthread.join();
             }
-            pngthread = std::thread([&ctx,&linedata](){
-                spng_encode_row(ctx, linedata.data(), linedata.size() * sizeof(ccdpixel));
+            pngline = std::move(linedata);
+            pngthread = std::thread([&ctx,&pngline](){
+                spng_encode_row(ctx, pngline.data(), pngline.size() * sizeof(ccdpixel));
             });
         }
         endCapture();
-        pngthread.join();
+        if(pngthread.joinable()){
+            pngthread.join();
+        }
 
         spng_ctx_free(ctx);
         fclose(pngfile);
