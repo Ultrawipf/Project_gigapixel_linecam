@@ -27,6 +27,7 @@ typedef enum {
 // Data SM timing, read by setup_data(). Defaults keep the assembled program and PIODATACLOCK
 extern float ccd_data_sm_freq; // Data SM clock in Hz
 extern int ccd_sample_delay;   // Delay cycles after each clock edge before sampling, -1 = as assembled
+extern int ccd_tg_delay;       // Delay cycles after the clock edges around the TG pulse, -1 = as assembled
 
 int set_clock(const SM_def *smdef,int enable);
 bool setup_clock(SM_def *smdef,float freq, uint gpio);

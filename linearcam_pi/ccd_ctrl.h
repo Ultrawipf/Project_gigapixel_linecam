@@ -114,6 +114,7 @@ public:
     static float ccdClockHz;  // CCD clock (ACLK)
     static float dataClockHz; // Data SM clock, 0 = 18 x ccdClockHz
     static int sampleDelay;   // Data SM cycles between clock edge and sample, -1 = as assembled
+    static int tgDelay;       // Data SM cycles between clock edges and the TG pulse edges, -1 = as assembled
 
     // Diagnostics: overrides the RX DMACTRL register of the data SM (FIFO DREQ threshold) set by the kernel
     void setRxDmaCtrl(uint32_t ctrl);

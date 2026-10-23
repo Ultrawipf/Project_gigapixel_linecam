@@ -38,12 +38,28 @@ bool gpio_get(uint32_t pin){
 #define PIOSAMPLEDELAY -1
 #endif
 
+#ifndef PIOTGDELAY
+#define PIOTGDELAY -1
+#endif
+
 float ccd_data_sm_freq = PIODATACLOCK;
 int ccd_sample_delay = PIOSAMPLEDELAY;
+int ccd_tg_delay = PIOTGDELAY;
 
-// Loads the data program. The sampling loop waits on both clock edges, ccd_sample_delay replaces
-// the delay of these two waits. Everything else stays as assembled, so the sample alignment only
-// changes when the delay is set explicitly
+// Replaces the delay (bits 11:8, side set is bit 12) of a WAIT instruction
+static void set_wait_delay(uint16_t* instr, uint idx, int delay){
+    if((instr[idx] & 0xE000) != 0x2000){
+        printf("Data program changed, instruction %u is no WAIT. Delay not applied\n", idx);
+        return;
+    }
+    instr[idx] = (instr[idx] & ~0x0F00) | ((delay & 0x0F) << 8);
+}
+
+// Loads the data program with the configured delays. Everything else stays as assembled.
+// ccd_sample_delay: the two waits of the sampling loop (clock edge to sample).
+// ccd_tg_delay: the three waits around the TG pulse (clock edge to TG high, TG low and first sample).
+// It decides at which clock edge the sensor sees TG; a bad value shifts lines by one pixel clock.
+// -1 keeps the assembled delays, so the alignment only changes when a delay is set explicitly
 static uint add_data_program(PIO pio){
     static uint16_t instr[32];
     pio_program_t prog = ccddata_program;
@@ -51,10 +67,13 @@ static uint add_data_program(PIO pio){
         instr[i] = ccddata_program.instructions[i];
     }
     if(ccd_sample_delay >= 0){
-        const uint waits[2] = {ccddata_wrap_target, ccddata_wrap_target+2};
-        for(uint i = 0; i < 2; i++){
-            instr[waits[i]] = (instr[waits[i]] & ~0x0F00) | ((ccd_sample_delay & 0x0F) << 8); // Delay bits 11:8, side set bit 12
-        }
+        set_wait_delay(instr, ccddata_wrap_target, ccd_sample_delay);
+        set_wait_delay(instr, ccddata_wrap_target+2, ccd_sample_delay);
+    }
+    if(ccd_tg_delay >= 0){
+        set_wait_delay(instr, ccddata_wrap_target-5, ccd_tg_delay); // wait 0 before TG
+        set_wait_delay(instr, ccddata_wrap_target-4, ccd_tg_delay); // wait 1, then TG high
+        set_wait_delay(instr, ccddata_wrap_target-2, ccd_tg_delay); // wait 0, then TG low
     }
     prog.instructions = instr;
     return pio_add_program(pio, &prog);

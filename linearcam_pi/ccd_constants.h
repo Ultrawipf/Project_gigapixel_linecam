@@ -17,6 +17,10 @@
 #define PIODATACLOCK 200000000.0f
 // Data SM cycles between a clock edge and sampling. Valid 2..9 at 6 MHz, 6 is the center
 #define PIOSAMPLEDELAY 6
+// Data SM cycles between the clock edges and the TG pulse edges. Decides at which clock edge the sensor
+// sees TG, a bad value shifts single lines by one pixel clock. Valid 5..14 at 6 MHz (the assembled [4]
+// only works with the old 18x data clock), 9 is the center
+#define PIOTGDELAY 9
 
 
 #define BYTESPERCOLOR 1

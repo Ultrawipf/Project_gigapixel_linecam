@@ -50,6 +50,7 @@ struct TimingArgs : public argparse::Args {
     float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
     float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock, default PIODATACLOCK").set_default(-1.0f);
     int &sampledelay       = kwarg("t,sampledelay", "Data SM cycles from clock edge to sample, -1 = as assembled, default PIOSAMPLEDELAY").set_default(-100);
+    int &tgdelay           = kwarg("g,tgdelay", "Data SM cycles from clock edges to TG edges, -1 = as assembled, default PIOTGDELAY").set_default(-100);
 };
 
 struct PioArgs : public argparse::Args {
@@ -61,6 +62,7 @@ struct PioArgs : public argparse::Args {
     float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
     float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock, default PIODATACLOCK").set_default(-1.0f);
     int &delay             = kwarg("t,delay", "Data SM cycles from clock edge to sample, -1 = as assembled, default PIOSAMPLEDELAY").set_default(-100);
+    int &tgdelay           = kwarg("g,tgdelay", "Data SM cycles from clock edges to TG edges, -1 = as assembled, default PIOTGDELAY").set_default(-100);
 };
 
 struct GammaArgs : public argparse::Args {
@@ -204,6 +206,7 @@ int main(int argc, char* argv[]) {
         if(t.freq > 0) CCD_Ctrl::ccdClockHz = t.freq;
         if(t.dataclk >= 0) CCD_Ctrl::dataClockHz = t.dataclk;
         if(t.sampledelay > -100) CCD_Ctrl::sampleDelay = t.sampledelay;
+        if(t.tgdelay > -100) CCD_Ctrl::tgDelay = t.tgdelay;
         CCD_Ctrl ccd;
         LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
@@ -274,6 +277,7 @@ int main(int argc, char* argv[]) {
         if(t.freq > 0) CCD_Ctrl::ccdClockHz = t.freq;
         if(t.dataclk >= 0) CCD_Ctrl::dataClockHz = t.dataclk;
         if(t.delay > -100) CCD_Ctrl::sampleDelay = t.delay;
+        if(t.tgdelay > -100) CCD_Ctrl::tgDelay = t.tgdelay;
         CCD_Ctrl ccd;
         LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
@@ -290,7 +294,7 @@ int main(int argc, char* argv[]) {
         ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
         const CCD_Parameters params = ccd.getCurParams();
         const uint32_t words = params.samplesPerLine / SAMPLESPERBUFFER;
-        std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (CCD_Ctrl::dataClockHz > 0 ? CCD_Ctrl::dataClockHz : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << CCD_Ctrl::sampleDelay << std::endl;
+        std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (CCD_Ctrl::dataClockHz > 0 ? CCD_Ctrl::dataClockHz : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << CCD_Ctrl::sampleDelay << ", TG delay " << CCD_Ctrl::tgDelay << std::endl;
         std::cout << "clk_sys " << CCD_Ctrl::sysClockHz() << " Hz, res " << t.resdiv << ", " << words << " words/line, lines " << t.lines << std::endl;
         if(!t.dmactrl.empty()){
             const uint32_t ctrl = std::stoul(t.dmactrl,nullptr,0);

@@ -3,6 +3,8 @@
 # to the capture path, PIO setup, piolib or firmware:
 #   linearcam_pi/tests/regress.sh [report file]
 # Compares against regress_ref.txt and prints PASS/FAIL per check. Exit code 1 on any FAIL.
+# The sensor must look at a static scene (the check does not move the slide): every line is
+# compared with the median line to find lines shifted by whole pixel clocks (TG timing).
 cd "$(dirname "$0")/../.." || exit 2
 B=./linearcam_pi/linearcam_pi
 T=linearcam_pi/tests
@@ -35,12 +37,14 @@ while read -r res words lag ref; do
     clk=$(echo "$r" | sed -n 's/^CCD clock \([0-9e.+]*\) Hz.*/\1/p')
     rd=$(echo "$r" | sed -n 's/^Readout.*mean *\([0-9.]*\).*/\1/p')
     bl=$(python3 $T/badlines.py /tmp/regress.bin "$words" "$lag" $SKIP)
+    ls=$(python3 $T/lineshift.py /tmp/regress.bin "$words" $SKIP)
+    nsh=$(echo "$ls" | sed -n 's/.*shifted \([0-9]*\).*/\1/p')
     nbad=$(echo "$bl" | sed -n 's/.*bad lines \([0-9]*\).*/\1/p')
     nmk=$(echo "$bl" | sed -n 's/.*markers bad \([0-9]*\).*/\1/p')
     dev=$(awk -v a="$rd" -v b="$ref" 'BEGIN{printf "%.1f", (a-b)/b*100}')
     ok=$(awk -v d="$dev" 'BEGIN{print (d < 2 && d > -2) ? 1 : 0}')
-    if [ "$nbad" = 0 ] && [ "$nmk" = 0 ] && [ "$ok" = 1 ]; then st=PASS; else st=FAIL; fi
-    echo "$st res $res clk $clk readout ${rd}us (ref ${ref}us, ${dev}%) | $bl"
+    if [ "$nbad" = 0 ] && [ "$nmk" = 0 ] && [ "$nsh" = 0 ] && [ "$ok" = 1 ]; then st=PASS; else st=FAIL; fi
+    echo "$st res $res clk $clk readout ${rd}us (ref ${ref}us, ${dev}%) | $bl | shifted lines $nsh"
 done < $T/regress_ref.txt
 rm -f /tmp/regress.bin
 }

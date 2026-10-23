@@ -45,10 +45,15 @@ CCD_Ctrl::~CCD_Ctrl()
 float CCD_Ctrl::ccdClockHz = CCDCLOCK;
 float CCD_Ctrl::dataClockHz = PIODATACLOCK;
 int CCD_Ctrl::sampleDelay = PIOSAMPLEDELAY;
+#ifndef PIOTGDELAY
+#define PIOTGDELAY -1
+#endif
+int CCD_Ctrl::tgDelay = PIOTGDELAY;
 
 void CCD_Ctrl::setupSm(){
     ccd_data_sm_freq = dataClockHz > 0 ? dataClockHz : ccdClockHz*18.0f;
     ccd_sample_delay = sampleDelay;
+    ccd_tg_delay = tgDelay;
     setup_clock(&sm_clock,ccdClockHz,ACLKPIN);
     setup_data(&sm_data,DATABASEPIN);
     pio_sm_clkdiv_restart(sm_clock.pio,sm_clock.sm);
@@ -302,6 +307,7 @@ uint32_t CCD_Ctrl::sysClockHz(){
 float CCD_Ctrl::ccdClockHz = 5000000.0f;
 float CCD_Ctrl::dataClockHz = 0;
 int CCD_Ctrl::sampleDelay = -1;
+int CCD_Ctrl::tgDelay = -1;
 CCD_Ctrl::CCD_Ctrl(){};
 CCD_Ctrl::~CCD_Ctrl(){};
 void CCD_Ctrl::setClock(bool enable){};
