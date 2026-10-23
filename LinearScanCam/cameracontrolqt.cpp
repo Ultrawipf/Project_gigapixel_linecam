@@ -227,14 +227,8 @@ void LinCCDQt::setClock(bool enable){
 }
 
 QFuture<bool> LinCCDQt::init(){
-    QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>();
-    connect(watcher,&QFutureWatcher<bool>::finished,watcher,&QFutureWatcher<bool>::deleteLater,Qt::SingleShotConnection);
-    // Connect start and end functions
-    // Start task
-    QFuture<bool> future = QtConcurrent::run(&CCD_Ctrl::initCCD,this);
-    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
-    watcher->setFuture(future);
-    return future;
+    // No QFutureWatcher here: init() is called from a worker thread without an event loop
+    return QtConcurrent::run(&CCD_Ctrl::initCCD,this);
 }
 
 
