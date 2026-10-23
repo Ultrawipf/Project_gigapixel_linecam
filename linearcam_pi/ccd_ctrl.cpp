@@ -280,6 +280,14 @@ bool CCD_Ctrl::initCCD(){
 uint32_t CCD_Ctrl::readReg(uint8_t adr){
     return read_ctrl_data_sm(&sm_data,adr);
 }
+
+void CCD_Ctrl::setRxDmaCtrl(uint32_t ctrl){
+    pio_sm_set_dmactrl(sm_data.pio,sm_data.sm,false,ctrl);
+}
+
+uint32_t CCD_Ctrl::sysClockHz(){
+    return clock_get_hz(clk_sys);
+}
 #else
 CCD_Ctrl::CCD_Ctrl(){};
 CCD_Ctrl::~CCD_Ctrl(){};
@@ -299,6 +307,8 @@ void CCD_Ctrl::sendCtrlData(uint8_t cmd,uint8_t data1,uint8_t data2){};
 void CCD_Ctrl::sendCtrlData(uint32_t data){};
 void CCD_Ctrl::sendCtrlDataArr(const uint32_t* buf,uint32_t len){};
 uint32_t CCD_Ctrl::readReg(uint8_t adr){return 0;};
+void CCD_Ctrl::setRxDmaCtrl(uint32_t ctrl){};
+uint32_t CCD_Ctrl::sysClockHz(){return 0;};
 
 uint32_t CCD_Ctrl::setResolution(CCD_Resolution res){curRes = res; return 0;};
 void CCD_Ctrl::setRgbGainOfs(uint8_t rOfs,uint8_t gOfs,uint8_t bOfs,uint8_t rGain,uint8_t gGain,uint8_t bGain){};

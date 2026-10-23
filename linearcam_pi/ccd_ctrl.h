@@ -110,6 +110,10 @@ public:
     void sendCtrlDataArr(const uint32_t* buf,uint32_t len);
     uint32_t readReg(uint8_t adr);
 
+    // Diagnostics: overrides the RX DMACTRL register of the data SM (FIFO DREQ threshold) set by the kernel
+    void setRxDmaCtrl(uint32_t ctrl);
+    static uint32_t sysClockHz();
+
     static CCD_Parameters getParamsFromResolution(CCD_Resolution res);
 
     static void copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset=FRAMEDATAOFFSET,bool reverse = false);

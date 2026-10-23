@@ -13,6 +13,7 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -47,6 +48,14 @@ struct TimingArgs : public argparse::Args {
     int &mm = kwarg("m", "Home, then move to position in mm before capturing. Image center is at 53").set_default(0);
 };
 
+struct PioArgs : public argparse::Args {
+    uint32_t &lines        = kwarg("l,lines", "Capture l lines").set_default(20);
+    unsigned int &resdiv   = kwarg("r,res", "Resolution divider. 0-4 (Div0 to Div16). Default 4 = preview").set_default(4);
+    std::string &output    = kwarg("o,output", "Dump raw 32 bit words of all lines to a file").set_default("");
+    std::string &dmactrl   = kwarg("d,dmactrl", "Override RX DMACTRL after setup, e.g. 0x80000108").set_default("");
+    uint32_t &skip         = kwarg("k,skip", "Lines skipped by the lane statistics, the first lines after start are not settled").set_default(5);
+};
+
 struct GammaArgs : public argparse::Args {
     std::string &input    = arg("in,input file", "16 bit png with gAMA chunk");
 };
@@ -67,6 +76,7 @@ struct MyArgs : public argparse::Args {
     StepperArgs &motorargs    = subcommand("mot");
     TimingArgs &timingargs    = subcommand("timing");
     GammaArgs &gammaargs    = subcommand("gamma");
+    PioArgs &pioargs    = subcommand("pio");
     MiscArgs &miscargs = subcommand("test");
 };
 
@@ -243,6 +253,94 @@ int main(int argc, char* argv[]) {
             motors.slideMotor_p->moveToMM(startPos,cam.moveSpeed,cam.moveAccel);
             motors.slideMotor_p->setEnable(false);
         }
+    }
+    if(args.pioargs.is_valid){
+        // Raw readout diagnostics. Checks the 32 marker words, zero/repeated words, byte lane alignment and readout time
+        PioArgs& t = args.pioargs;
+        CCD_Ctrl ccd;
+        LinearCamCtrl cam(motors,ccd);
+        pinctrl.setEnablePin(false);
+        sleep_ms(100);
+        pinctrl.setEnablePin(true);
+        ccd.setClock(true);
+        sleep_ms(500);
+        if(!ccd.initCCD()){
+            std::cout << "CCD init failed" << std::endl;
+            return 1;
+        }
+        CCD_Resolution res = static_cast<CCD_Resolution>(std::min(4u,t.resdiv));
+        ccd.setResolution(res);
+        ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
+        const CCD_Parameters params = ccd.getCurParams();
+        const uint32_t words = params.samplesPerLine / SAMPLESPERBUFFER;
+        std::cout << "clk_sys " << CCD_Ctrl::sysClockHz() << " Hz, res " << t.resdiv << ", " << words << " words/line, lines " << t.lines << std::endl;
+        if(!t.dmactrl.empty()){
+            const uint32_t ctrl = std::stoul(t.dmactrl,nullptr,0);
+            printf("Setting RX DMACTRL 0x%08x\n",ctrl);
+            ccd.setRxDmaCtrl(ctrl);
+        }
+
+        std::vector<uint32_t> dump((size_t)words*t.lines,0xDEADBEEF);
+        std::vector<double> readus;
+        ccd.startCapture();
+        for(uint32_t l = 0;l<t.lines;l++){
+            const auto t0 = std::chrono::steady_clock::now();
+            ccd.captureData(dump.data() + (size_t)l*words,words,words);
+            readus.push_back(std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now() - t0).count());
+        }
+        ccd.endCapture();
+        ccd.setClock(false);
+
+        if(!t.output.empty()){
+            FILE* f = fopen(t.output.c_str(),"wb");
+            if(f){
+                fwrite(dump.data(),sizeof(uint32_t),dump.size(),f);
+                fclose(f);
+            }
+        }
+
+        const uint32_t markers = 32;
+        const uint32_t lag = res == CCD_Resolution::Full ? 6 : 3; // Words between two samples of the same color/row
+        const uint32_t skip = std::min<uint32_t>(t.skip,t.lines-1); // First lines after start may contain stale charge
+        uint32_t markerOk = 0, untouched = 0, zeros = 0, maxRun = 0;
+        double lanesq[4] = {0,0,0,0};
+        double lanesum[4] = {0,0,0,0};
+        uint64_t lanen = 0;
+        for(uint32_t l = 0;l<t.lines;l++){
+            const uint32_t* w = dump.data() + (size_t)l*words;
+            bool ok = true;
+            for(uint32_t i = 0;i<markers;i++){
+                if(w[i] != markers-1-i) ok = false;
+            }
+            markerOk += ok;
+            uint32_t run = 1;
+            for(uint32_t i = markers;i<words;i++){
+                untouched += w[i] == 0xDEADBEEF;
+                zeros += w[i] == 0;
+                run = (w[i] == w[i-1]) ? run+1 : 1;
+                maxRun = std::max(maxRun,run);
+                if(l >= skip && i+lag < words){
+                    for(int b = 0;b<4;b++){
+                        const double d = (double)((w[i] >> (8*b)) & 0xff) - (double)((w[i+lag] >> (8*b)) & 0xff);
+                        lanesq[b] += d*d;
+                        lanesum[b] += (w[i] >> (8*b)) & 0xff;
+                    }
+                    lanen++;
+                }
+            }
+        }
+        printf("Markers ok: %u/%u lines\n",markerOk,t.lines);
+        printf("Data words: zero %u, never written %u, longest run of equal words %u\n",zeros,untouched,maxRun);
+        printf("Byte lane (3=first sample) mean / rms diff to the same color %u words later. MSB lanes 3 and 1 should be smooth:\n",lag);
+        for(int b = 3;b>=0;b--){
+            printf("  lane %d: mean %6.1f  rms diff %6.2f\n",b,lanesum[b]/std::max<uint64_t>(1,lanen),std::sqrt(lanesq[b]/std::max<uint64_t>(1,lanen)));
+        }
+        printStats("Readout",readus);
+        printf("First words of line %u:",skip);
+        for(uint32_t i = 0;i<48 && i<words;i++){
+            printf("%s%08x",i % 8 ? " " : "\n  ",dump[(size_t)skip*words+i]);
+        }
+        printf("\n");
     }
     if(args.gammaargs.is_valid){
         // Compares the spng gamma decode (old low res path) with the 16 bit display LUT (new path)
