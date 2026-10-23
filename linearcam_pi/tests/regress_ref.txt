@@ -1,0 +1,10 @@
+# Reference readout per resolution for regress.sh
+# Recorded 2026-10-23: CCD 6 MHz, data SM 200 MHz, sample delay 6
+# firmware 4b27efc5346462f9829efaf36045d12d4a663a4f (kernel 6.18.58, git 7bc8e3eb)
+# bootloader f56d3ff6 2026/10/23, RP1 firmware a2e0ebda, piolib utils b57c48e
+# res words_per_line lag readout_us
+4 6000 3 2070.6
+3 9000 3 3079.7
+2 16752 3 5687.1
+1 33000 3 11186.8
+0 65274 6 22056.1
