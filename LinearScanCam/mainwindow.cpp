@@ -89,7 +89,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButton_savepreview,&QPushButton::clicked,this,&MainWindow::savePreview);
 
 
-    restoreSettings(config);
+    try{
+        restoreSettings(config);
+    }catch(const json::exception& e){
+        // Wrong value types in the config. Continue with what was restored so far
+        qDebug() << "Failed to restore settings:" << e.what();
+        statusMsgCb("Config error, using defaults");
+    }
     ui->horizontalSlider_imagewidth->setValue(500);
 
     // Wait for init

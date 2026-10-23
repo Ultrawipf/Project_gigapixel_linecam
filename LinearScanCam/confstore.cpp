@@ -1,5 +1,6 @@
 #include "confstore.h"
 #include <iostream>
+#include <filesystem>
 
 ConfStore::ConfStore(std::string file) : filename(file)
 {
@@ -42,21 +43,37 @@ void ConfStore::loadSettings(std::string file){
     std::ifstream f(file);
     if(!f.fail()){ // Write new file
         std::cout << "Found config file" << std::endl;
-        json newConf;
-        f >> newConf;
-        config.update(newConf,true);
+        try{
+            json newConf = json::parse(f);
+            config.update(newConf,true);
+        }catch(const json::exception& e){
+            // Keep the broken file for inspection and continue with defaults
+            std::cout << "Invalid config file, using defaults: " << e.what() << std::endl;
+            config = c;
+            f.close();
+            std::error_code ec;
+            std::filesystem::rename(file,file + ".bak",ec);
+        }
     }
     f.close();
 
-    std::ofstream of(file);
-    of << config; // Update file again
-    of.close();
-
+    saveSettings(file); // Update file again
 }
 
 
 void ConfStore::saveSettings(std::string file){
-    std::ofstream of(file);
-    of << config; // Update file again
+    // Write to a temp file and rename so a crash or power loss can't leave a truncated config
+    const std::string tmpfile = file + ".tmp";
+    std::ofstream of(tmpfile);
+    of << config.dump(1);
     of.close();
+    if(of.fail()){
+        std::cout << "Failed to write config " << tmpfile << std::endl;
+        return;
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmpfile,file,ec);
+    if(ec){
+        std::cout << "Failed to save config " << file << ": " << ec.message() << std::endl;
+    }
 }
