@@ -9,6 +9,10 @@
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
+#include <cstdlib>
+#include <deque>
+#include <mutex>
+#include <condition_variable>
 
 static int64_t steadyNs(){
     return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -114,9 +118,67 @@ void LinearCamCtrl::abortImageCapture(){
     captureInProgress = false;
 }
 
+// Writes lines on its own thread so a slow encode or file write never delays the next line start
+// (which would lengthen that line's exposure). Lines are written in order. push() only blocks when
+// maxLines are waiting, finish() writes the rest and stops the thread
+class LineWriter{
+public:
+    LineWriter(std::function<void(const std::vector<ccdpixel>&)> write,size_t maxLines = 64)
+        : write(write),maxLines(maxLines),worker([this](){run();}){}
+    ~LineWriter(){
+        finish();
+    }
+    void push(std::vector<ccdpixel>&& line){
+        std::unique_lock<std::mutex> lock(mutex);
+        notFull.wait(lock,[this](){return queue.size() < maxLines;});
+        queue.push_back(std::move(line));
+        notEmpty.notify_one();
+    }
+    void finish(){
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            done = true;
+        }
+        notEmpty.notify_one();
+        if(worker.joinable()){
+            worker.join();
+        }
+    }
+private:
+    void run(){
+        while(true){
+            std::vector<ccdpixel> line;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                notEmpty.wait(lock,[this](){return done || !queue.empty();});
+                if(queue.empty()){
+                    return; // done and drained
+                }
+                line = std::move(queue.front());
+                queue.pop_front();
+                notFull.notify_one();
+            }
+            write(line);
+        }
+    }
+    std::function<void(const std::vector<ccdpixel>&)> write;
+    size_t maxLines;
+    std::mutex mutex;
+    std::condition_variable notEmpty,notFull;
+    std::deque<std::vector<ccdpixel>> queue;
+    bool done = false;
+    std::thread worker; // Last member, starts after the others are initialized
+};
+
 // Saves image into a file and optionally returns last line as callback argument
 void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay,std::optional<std::function<void(const std::vector<ccdpixel>&)>> lineCallback,bool nomovemode){
     CCD_Parameters params = ccd.getCurParams();
+    // Debug aid: LINESCAN_TIMING_CSV=<file> writes the per line timestamps of every capture
+    const char* timingCsv = std::getenv("LINESCAN_TIMING_CSV");
+    const bool recordTimingBefore = recordTiming;
+    if(timingCsv){
+        recordTiming = true;
+    }
 
     //float curPos = motors.slideMotor_p->getActualPos();
     uint32_t linewidth = params.validPixelEnd - params.validPixelBegin;
@@ -138,8 +200,9 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines,16,pnggamma,pngCompressionLevel);
 
-        std::thread pngthread;
-        std::vector<ccdpixel> pngline; // Line owned by the encoder thread. Must outlive the thread
+        LineWriter writer([ctx](const std::vector<ccdpixel>& l){
+            spng_encode_row(ctx, l.data(), l.size() * sizeof(ccdpixel));
+        });
         startCapture(nomovemode);
         captureInProgress = true;
         for(int line = 0;line < lines+bonuslines && captureInProgress;line++){
@@ -150,19 +213,10 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             if(lineCallback.has_value()){
                 (lineCallback.value())(linedata);
             }
-            //spng_encode_row(ctx, linedata.data(), linedata.size() * sizeof(ccdpixel));
-            if(pngthread.joinable()){
-                pngthread.join();
-            }
-            pngline = std::move(linedata);
-            pngthread = std::thread([&ctx,&pngline](){
-                spng_encode_row(ctx, pngline.data(), pngline.size() * sizeof(ccdpixel));
-            });
+            writer.push(std::move(linedata));
         }
         endCapture();
-        if(pngthread.joinable()){
-            pngthread.join();
-        }
+        writer.finish(); // Encode the queued lines before the context is freed
 
         spng_ctx_free(ctx);
         fclose(pngfile);
@@ -207,13 +261,14 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         captureInProgress = false;
     }else{
         // Raw
-        std::thread thread;
         std::cout << "Save raw" << std::endl;
-        /* Creating an encoder context requires a flag */
         FILE* file = fopen(filename.c_str(),"wb");
         if(!file){
             throw std::runtime_error("Cannot open image file " + filename);
         }
+        LineWriter writer([file](const std::vector<ccdpixel>& l){
+            fwrite(l.data(), l.size(), sizeof(ccdpixel), file);
+        });
         startCapture(nomovemode);
         captureInProgress = true;
         int bonuslines = params.lineBuffers+startupSkipLines;
@@ -225,22 +280,23 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             if(lineCallback.has_value()){
                 (lineCallback.value())(linedata);
             }
-            // Save line
-            thread = std::thread([&](){
-                fwrite(linedata.data(), linedata.size(), sizeof(ccdpixel), file);
-            });
-            if(thread.joinable()){
-                thread.join();
-            }
-            //fwrite(linedata.data(), linedata.size(), sizeof(ccdpixel), file);
-
+            writer.push(std::move(linedata));
         }
 
         endCapture();
+        writer.finish(); // Write the queued lines before the file is closed
         fclose(file);
         captureInProgress = false;
     }
 
+    if(timingCsv){
+        std::ofstream csv(timingCsv);
+        csv << "line,readStart_ns,readEnd_ns,moveStart_ns,moveEnd_ns" << std::endl;
+        for(size_t i = 0;i<lineTimings.size();i++){
+            csv << i << ',' << lineTimings[i].readStart << ',' << lineTimings[i].readEnd << ',' << lineTimings[i].moveStart << ',' << lineTimings[i].moveEnd << std::endl;
+        }
+        recordTiming = recordTimingBefore;
+    }
     //motors.slideMotor_p->moveToMM(curPos,moveSpeed,moveAccel);
 }
 
