@@ -74,6 +74,7 @@ public:
     static constexpr float moveSpeed = 350;
 
     float pnggamma = 1.0;
+    uint8_t pngCompressionLevel = PNG_COMPRESSION_LEVEL; // Used when captureImage() encodes png directly
 
     // Exposure = time between two TG pulses. Set recordTiming to log every captured line into lineTimings
     bool recordTiming = false;

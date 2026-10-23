@@ -332,14 +332,16 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
         throw JobCancelled();
     }
 
-    // Capture the image
+    // Capture the image. Direct mode encodes into a temporary png next to the final file
+    const fs::path scanfile = directPngCapture ? fs::path(newimagename).replace_extension(".part.png") : recordimagename;
+    ctrl->pngCompressionLevel = pngCompressionOvr;
     statusMsgCb("Capturing image...");
     motor.enableProgress = false;
-    ctrl->captureImageBlocking(recordimagename.string(),lines,s.exposureUs,s.nomovemode);
+    ctrl->captureImageBlocking(scanfile.string(),lines,s.exposureUs,s.nomovemode);
     if(abortRequested){
         // Partial scan. Discard it and return to the start position
         std::error_code ec;
-        fs::remove(recordimagename,ec);
+        fs::remove(scanfile,ec);
         motor.enableProgress = true;
         statusMsgCb("Cancelled, moving back...");
         motor.moveToMMBlocking(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
@@ -349,9 +351,17 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
     // Move back while encoding and show image
     statusMsgCb("Processing image...");
     auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-    fs::path img = ctrl->reencodeRawToPng(recordimagename,newimagename,lines,params.validPixelEnd - params.validPixelBegin,3);
+    fs::path img;
     std::error_code ec;
-    fs::remove(recordimagename,ec); // delete temp file
+    if(directPngCapture){
+        fs::rename(scanfile,newimagename,ec);
+        if(!ec){
+            img = newimagename;
+        }
+    }else{
+        img = ctrl->reencodeRawToPng(recordimagename,newimagename,lines,params.validPixelEnd - params.validPixelBegin,3);
+        fs::remove(recordimagename,ec); // delete temp file
+    }
     if(img.empty()){
         mover.waitForFinished();
         throw std::runtime_error("Encoding image failed");
@@ -409,6 +419,7 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     }
 
     statusMsgCb("Capturing preview...");
+    ctrl->pngCompressionLevel = PNG_COMPRESSION_LEVEL;
     motor.enableProgress = false;
     ctrl->captureImageBlocking(previewFile.string(),lines,s.exposureUs,s.nomovemode);
     if(abortRequested){

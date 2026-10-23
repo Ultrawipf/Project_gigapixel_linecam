@@ -133,7 +133,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
         spng_set_png_file(ctx, pngfile);
 
-        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines,16,pnggamma,PNG_COMPRESSION_LEVEL);
+        png::pngSetDefaultOptionsProgressive(ctx,linewidth,lines,16,pnggamma,pngCompressionLevel);
 
         std::thread pngthread;
         std::vector<ccdpixel> pngline; // Line owned by the encoder thread. Must outlive the thread

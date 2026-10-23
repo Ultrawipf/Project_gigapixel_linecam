@@ -209,6 +209,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Res " << t.resdiv << " samples/line " << params.samplesPerLine << " movelines " << params.moveLines
                   << " lines " << t.lines << " delay " << t.delay << "us period " << t.period << "us out " << t.output << std::endl;
 
+        cam.pngCompressionLevel = t.compression;
         cam.linePeriodUs = t.period;
         cam.recordTiming = true;
         cam.captureImage(t.output,t.lines,t.delay,std::nullopt,t.nomove);

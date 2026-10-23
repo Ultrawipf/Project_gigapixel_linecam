@@ -3,6 +3,10 @@
 
 #include <QMainWindow>
 
+#ifndef CAPTURE_DIRECT_PNG
+#define CAPTURE_DIRECT_PNG 0
+#endif
+
 #include <QPromise>
 #include <functional>
 #include "cameracontrolqt.h"
@@ -129,6 +133,9 @@ private:
     const float nomovemult = 2.0f;
 
     static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip+1;
+    // true: full captures are png encoded line by line during the scan, like previews.
+    // false: the scan writes raw data and is encoded afterwards, which keeps the CPU load during the scan low
+    static constexpr bool directPngCapture = CAPTURE_DIRECT_PNG;
     // Low res copies keep 16 bit linear data and the gAMA chunk. The gamma curve is applied when an image is displayed
     static constexpr spng_format lowresFormat = SPNG_FMT_PNG;
 };
