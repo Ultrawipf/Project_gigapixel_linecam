@@ -243,11 +243,13 @@ QFuture<bool> LinCCDQt::init(){
 MotorControlQt::MotorControlQt(TMC2209_motor* motor)
     : motor(motor)
 {
+    motorPool.setMaxThreadCount(1); // Execute queued moves strictly in order
     progressTimer.setInterval(32);
     progressTimer.callOnTimeout(this,&MotorControlQt::emitProgress);
 }
 
 MotorControlQt::~MotorControlQt(){
+    motorPool.waitForDone();
     std::cout << "Deleting motorcontroller qt" << std::endl;
 }
 
@@ -260,60 +262,95 @@ double MotorControlQt::emitPosition(){
 void MotorControlQt::emitProgress(){
     if(!enableProgress) return;
     double curpos = emitPosition();
-    if(targetpos != startpos){
-        float progressVal = std::abs(MAXPROGRESS*(curpos-startpos) / (targetpos-startpos));
+    const double start = startpos;
+    const double target = targetpos;
+    if(target != start){
+        float progressVal = std::abs(MAXPROGRESS*(curpos-start) / (target-start));
         emit progress(progressVal);
-        if(curpromise){
-            curpromise->setProgressValue(progressVal);
-        }
     }
+}
+
+std::unique_lock<std::mutex> MotorControlQt::lock(){
+    return std::unique_lock<std::mutex>(motorMutex);
+}
+
+// Begin/end handlers touch the timer and are connected to widgets. Always run them on the GUI thread
+void MotorControlQt::notifyBegin(){
+    QMetaObject::invokeMethod(this,&MotorControlQt::motorBegin,Qt::QueuedConnection);
+}
+
+void MotorControlQt::notifyEnd(){
+    QMetaObject::invokeMethod(this,&MotorControlQt::motorEnd,Qt::QueuedConnection);
+}
+
+void MotorControlQt::moveMMLocked(float mm,float speed, float accel){
+    // Position is read under the lock so queued moves start from the real position
+    startpos = motor->getActualPos();
+    mm = std::min<double>(maxPos-startpos,std::max<double>(minPos-startpos,mm));
+    targetpos = startpos + mm;
+    notifyBegin();
+    try{
+        motor->moveMM(mm,speed,accel);
+    }catch(...){
+        notifyEnd();
+        throw;
+    }
+    notifyEnd();
+}
+
+void MotorControlQt::moveMMBlocking(float mm,float speed, float accel){
+    if(!motor) return;
+    std::lock_guard<std::mutex> guard(motorMutex);
+    moveMMLocked(mm,speed,accel);
+}
+
+void MotorControlQt::moveToMMBlocking(float pos,float speed, float accel){
+    if(!motor) return;
+    std::lock_guard<std::mutex> guard(motorMutex);
+    std::cout << "Moving to mm QT "<< pos << std::endl;
+    moveMMLocked(pos - motor->getActualPos(),speed,accel);
+}
+
+void MotorControlQt::homeBlocking(){
+    if(!motor) return;
+    std::lock_guard<std::mutex> guard(motorMutex);
+    targetpos = 0;
+    startpos = motor->getActualPos();
+    notifyBegin();
+    try{
+        Motors::homeSlide();
+    }catch(...){
+        notifyEnd();
+        throw;
+    }
+    notifyEnd();
 }
 
 QFuture<void> MotorControlQt::moveMM(float mm,float speed, float accel,QThreadPool *pool){
     if(!motor) return QtFuture::makeReadyFuture();
-    startpos = motor->getActualPos();
-    mm = std::min<double>(maxPos-startpos,std::max<double>(minPos-startpos,mm));
-    targetpos = startpos + mm;
-
-    QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
-    // Connect start and end functions
-    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
-    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
-    // Start task
-    QFuture<void> future = QtConcurrent::run(pool,[this,mm,speed,accel]{this->motor->moveMM(mm,speed,accel);});
-    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::moveRunner,this,steps,speed,accel); // [this](QPromise<void> &promise){this->homeRunner(promise);}
-    watcher->setFuture(future);
-    return future;
+    return QtConcurrent::run(pool ? pool : &motorPool,[this,mm,speed,accel]{moveMMBlocking(mm,speed,accel);});
 }
-QFuture<void> MotorControlQt::moveToMM(float mm,float speed, float accel,QThreadPool *pool){
-    std::cout << "Moving to mm QT "<< mm << std::endl;
-    return moveMM(mm - motor->getActualPos(),speed,accel,pool);
+
+QFuture<void> MotorControlQt::moveToMM(float pos,float speed, float accel,QThreadPool *pool){
+    if(!motor) return QtFuture::makeReadyFuture();
+    // Target is converted to a relative move only when the move actually starts
+    return QtConcurrent::run(pool ? pool : &motorPool,[this,pos,speed,accel]{moveToMMBlocking(pos,speed,accel);});
+}
+
+QFuture<void> MotorControlQt::home(QThreadPool *pool){
+    if(!motor) return QtFuture::makeReadyFuture();
+    return QtConcurrent::run(pool ? pool : &motorPool,[this]{homeBlocking();});
 }
 
 float MotorControlQt::getCurPos(){
     return motor->getActualPos();
 }
 
-/*
-void MotorControlQt::moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel){
-    promise.setProgressRange(0,100);
-    curpromise = &promise;
-    motor->move(steps,speed,accel);
-}
-
-void MotorControlQt::homeRunner(QPromise<void> &promise){
-    promise.setProgressRange(0,100);
-    curpromise = &promise;
-    Motors::homeSlide();
-}
-*/
 void MotorControlQt::motorEnd(){
     emit progress(MAXPROGRESS);
     progressTimer.stop();
     emit idle(true);
     emit busy(false);
-    curpromise = nullptr;
     emitPosition();
 }
 
@@ -322,24 +359,4 @@ void MotorControlQt::motorBegin(){
     emit progress(0);
     emit idle(false);
     emit busy(true);
-}
-
-QFuture<void> MotorControlQt::home(QThreadPool *pool){
-    if(!motor) return QtFuture::makeReadyFuture();
-
-    targetpos = 0;
-    startpos = motor->getActualPos();
-
-    // Create future watcher
-    QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
-    connect(watcher,&QFutureWatcher<void>::finished,watcher,&QFutureWatcher<void>::deleteLater,Qt::SingleShotConnection);
-    // Connect start and end functions
-    connect(watcher,&QFutureWatcher<void>::started,this,&MotorControlQt::motorBegin,Qt::SingleShotConnection);
-    connect(watcher,&QFutureWatcher<void>::finished,this,&MotorControlQt::motorEnd,Qt::SingleShotConnection);
-    // Start task
-    QFuture<void> future = QtConcurrent::run(pool,&Motors::homeSlide);
-    //QFuture<void> future = QtConcurrent::run(&MotorControlQt::homeRunner,this); // [this](QPromise<void> &promise){this->homeRunner(promise);}
-    watcher->setFuture(future);
-    return future;
-
 }

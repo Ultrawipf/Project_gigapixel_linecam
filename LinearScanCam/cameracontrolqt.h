@@ -9,12 +9,17 @@
 #include "pcfioqt.h"
 #include <filesystem>
 #include <spng.h>
+#include <atomic>
+#include <mutex>
 
 #define MAXPROGRESS 1000.0f
 
 namespace fs = std::filesystem;
 
 // Helper class to control a motor directly from Qt
+// All motor movements are serialized by motorMutex. Asynchronous moves run on a
+// single thread pool owned by this object, so requests execute in order and two
+// threads can never step the motor at the same time.
 class MotorControlQt : public QObject{
     Q_OBJECT
 public:
@@ -22,12 +27,19 @@ public:
     MotorControlQt(TMC2209_motor* motor);
     virtual ~MotorControlQt();
 
-    QFuture<void> home(QThreadPool *pool= QThreadPool::globalInstance());
-    //void homeRunner(QPromise<void> &promise);
-    QFuture<void> moveMM(float mm,float speed, float accel,QThreadPool *pool= QThreadPool::globalInstance());
-    //void moveRunner(QPromise<void> &promise,int64_t steps,float speed, float accel);
-    QFuture<void> moveToMM(float pos,float speed, float accel,QThreadPool *pool= QThreadPool::globalInstance());
-    //void run(QPromise<int> &promise);
+    // Asynchronous moves. pool = nullptr uses the internal single thread motor pool
+    QFuture<void> home(QThreadPool *pool = nullptr);
+    QFuture<void> moveMM(float mm,float speed, float accel,QThreadPool *pool = nullptr);
+    QFuture<void> moveToMM(float pos,float speed, float accel,QThreadPool *pool = nullptr);
+
+    // Blocking moves for use inside worker threads. Never call from the GUI thread
+    void homeBlocking();
+    void moveMMBlocking(float mm,float speed, float accel);
+    void moveToMMBlocking(float pos,float speed, float accel);
+
+    // Hold the returned lock while driving the motor directly (e.g. line moves during a capture)
+    std::unique_lock<std::mutex> lock();
+
     float getCurPos();
 
     int64_t homesteps = -40000;
@@ -38,7 +50,7 @@ public:
 
     TMC2209_motor* motor;
 
-    bool enableProgress = true;
+    std::atomic<bool> enableProgress = true;
 signals:
     void position(double val);
     void progress(float val);
@@ -55,13 +67,17 @@ public slots:
     void motorEnd();
 
 protected:
+    // Must be called with motorMutex held
+    void moveMMLocked(float mm,float speed, float accel);
+    void notifyBegin();
+    void notifyEnd();
+
     QTimer progressTimer;
-    bool running=false;
+    std::mutex motorMutex;
+    QThreadPool motorPool;
 
-    QPromise<void>* curpromise = nullptr;
-
-    double startpos;
-    double targetpos;
+    std::atomic<double> startpos = 0;
+    std::atomic<double> targetpos = 0;
 };
 
 class LinCCDQt : public QObject, public CCD_Ctrl{
