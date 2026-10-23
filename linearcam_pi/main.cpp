@@ -12,6 +12,7 @@
 #include <iterator>
 #include <cmath>
 #include <algorithm>
+#include <array>
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -46,6 +47,10 @@ struct TimingArgs : public argparse::Args {
     int &mm = kwarg("m", "Home, then move to position in mm before capturing. Image center is at 53").set_default(0);
 };
 
+struct GammaArgs : public argparse::Args {
+    std::string &input    = arg("in,input file", "16 bit png with gAMA chunk");
+};
+
 struct MiscArgs : public argparse::Args {
     std::string &input    = arg("in,input file", "Image input");
     std::string &output    = arg("out,output file", "Image output").set_default("out.png");
@@ -61,6 +66,7 @@ struct MyArgs : public argparse::Args {
     ImgArgs &imgargs    = subcommand("img");
     StepperArgs &motorargs    = subcommand("mot");
     TimingArgs &timingargs    = subcommand("timing");
+    GammaArgs &gammaargs    = subcommand("gamma");
     MiscArgs &miscargs = subcommand("test");
 };
 
@@ -235,6 +241,63 @@ int main(int argc, char* argv[]) {
             motors.slideMotor_p->setEnable(true);
             motors.slideMotor_p->moveToMM(startPos,cam.moveSpeed,cam.moveAccel);
             motors.slideMotor_p->setEnable(false);
+        }
+    }
+    if(args.gammaargs.is_valid){
+        // Compares the spng gamma decode (old low res path) with the 16 bit display LUT (new path)
+        FILE* f = fopen(args.gammaargs.input.c_str(),"rb");
+        if(!f){
+            std::cout << "Cannot open " << args.gammaargs.input << std::endl;
+            return 1;
+        }
+        const double gamma = png::getPngGamma(f);
+        std::cout << "File gamma: " << gamma << std::endl;
+        if(gamma <= 0){
+            fclose(f);
+            return 1;
+        }
+        auto decode = [&](spng_format fmt,int flags,std::vector<uint8_t>& out){
+            rewind(f);
+            spng_ctx* ctx = spng_ctx_new(0);
+            spng_set_png_file(ctx,f);
+            spng_set_chunk_limits(ctx,1024*1024*64,1024*1024*64);
+            size_t len = 0;
+            spng_decoded_image_size(ctx,fmt,&len);
+            out.resize(len);
+            int res = spng_decode_image(ctx,out.data(),len,fmt,flags);
+            spng_ihdr ihdr;
+            spng_get_ihdr(ctx,&ihdr);
+            spng_ctx_free(ctx);
+            if(res != SPNG_OK) std::cout << "Decode error " << spng_strerror(res) << std::endl;
+            return ihdr;
+        };
+        std::vector<uint8_t> old8,raw16;
+        spng_ihdr ihdr = decode(SPNG_FMT_RGBA8,SPNG_DECODE_GAMMA,old8);
+        decode(SPNG_FMT_RGBA16,0,raw16);
+        fclose(f);
+        const std::vector<uint8_t> lut = png::gammaLut16to8(gamma);
+        const uint16_t* px16 = reinterpret_cast<const uint16_t*>(raw16.data());
+        const size_t samples = (size_t)ihdr.width*ihdr.height*4;
+        // Difference per output level of the new curve. Shadows differ because spng cuts to 8 bit before the curve
+        int maxdiff = 0;
+        size_t count = 0,diffcount = 0;
+        double sumdiff = 0;
+        std::array<int,256> maxdiffAt{};
+        for(size_t i = 0;i<samples;i++){
+            if(i % 4 == 3) continue; // Alpha
+            const int n = lut[px16[i]];
+            const int d = std::abs(n - (int)old8[i]);
+            maxdiff = std::max(maxdiff,d);
+            maxdiffAt[n] = std::max(maxdiffAt[n],d);
+            sumdiff += d;
+            if(d > 1) diffcount++;
+            count++;
+        }
+        printf("%ux%u: mean |new-old| %.3f, max %d, samples off by >1: %.3f%%\n",ihdr.width,ihdr.height,sumdiff/count,maxdiff,100.0*diffcount/count);
+        for(int lvl = 0;lvl<256;lvl+=32){
+            int m = 0;
+            for(int i = lvl;i<lvl+32;i++) m = std::max(m,maxdiffAt[i]);
+            printf("  new value %3d-%3d: max diff %d\n",lvl,lvl+31,m);
         }
     }
     if(args.miscargs.is_valid && !args.miscargs.input.empty() && !args.miscargs.output.empty()){
