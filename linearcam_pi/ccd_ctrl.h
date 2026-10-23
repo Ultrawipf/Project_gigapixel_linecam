@@ -110,7 +110,7 @@ public:
     void sendCtrlDataArr(const uint32_t* buf,uint32_t len);
     uint32_t readReg(uint8_t adr);
 
-    // Readout timing, applied when the SMs are set up (constructor). Defaults: CCDCLOCK and the assembled program
+    // Readout timing, applied when the SMs are set up (constructor). Defaults: CCDCLOCK, PIODATACLOCK, PIOSAMPLEDELAY
     static float ccdClockHz;  // CCD clock (ACLK)
     static float dataClockHz; // Data SM clock, 0 = 18 x ccdClockHz
     static int sampleDelay;   // Data SM cycles between clock edge and sample, -1 = as assembled

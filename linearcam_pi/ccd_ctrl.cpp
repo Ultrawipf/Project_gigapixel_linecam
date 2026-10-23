@@ -43,8 +43,8 @@ CCD_Ctrl::~CCD_Ctrl()
 }
 
 float CCD_Ctrl::ccdClockHz = CCDCLOCK;
-float CCD_Ctrl::dataClockHz = 0;
-int CCD_Ctrl::sampleDelay = -1;
+float CCD_Ctrl::dataClockHz = PIODATACLOCK;
+int CCD_Ctrl::sampleDelay = PIOSAMPLEDELAY;
 
 void CCD_Ctrl::setupSm(){
     ccd_data_sm_freq = dataClockHz > 0 ? dataClockHz : ccdClockHz*18.0f;

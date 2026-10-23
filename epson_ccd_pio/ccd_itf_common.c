@@ -34,8 +34,12 @@ bool gpio_get(uint32_t pin){
 #define PIODATACLOCK 60000000.0f
 #endif
 
+#ifndef PIOSAMPLEDELAY
+#define PIOSAMPLEDELAY -1
+#endif
+
 float ccd_data_sm_freq = PIODATACLOCK;
-int ccd_sample_delay = -1;
+int ccd_sample_delay = PIOSAMPLEDELAY;
 
 // Loads the data program. The sampling loop waits on both clock edges, ccd_sample_delay replaces
 // the delay of these two waits. Everything else stays as assembled, so the sample alignment only

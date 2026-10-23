@@ -46,6 +46,9 @@ struct TimingArgs : public argparse::Args {
     int &period            = kwarg("p,period", "Fixed line period in us (0 = off). Must exceed readout + processing").set_default(0);
     std::string &csv       = kwarg("c,csv", "Write per line timestamps to a csv file").set_default("");
     int &mm = kwarg("m", "Home, then move to position in mm before capturing. Image center is at 53").set_default(0);
+    float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
+    float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock, default PIODATACLOCK").set_default(-1.0f);
+    int &sampledelay       = kwarg("t,sampledelay", "Data SM cycles from clock edge to sample, -1 = as assembled, default PIOSAMPLEDELAY").set_default(-100);
 };
 
 struct PioArgs : public argparse::Args {
@@ -55,8 +58,8 @@ struct PioArgs : public argparse::Args {
     std::string &dmactrl   = kwarg("d,dmactrl", "Override RX DMACTRL after setup, e.g. 0x80000108").set_default("");
     uint32_t &skip         = kwarg("k,skip", "Lines skipped by the lane statistics, the first lines after start are not settled").set_default(5);
     float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
-    float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock").set_default(0.0f);
-    int &delay             = kwarg("t,delay", "Data SM cycles from clock edge to sample, -1 = as assembled").set_default(-1);
+    float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock, default PIODATACLOCK").set_default(-1.0f);
+    int &delay             = kwarg("t,delay", "Data SM cycles from clock edge to sample, -1 = as assembled, default PIOSAMPLEDELAY").set_default(-100);
 };
 
 struct GammaArgs : public argparse::Args {
@@ -197,6 +200,9 @@ int main(int argc, char* argv[]) {
     if(args.timingargs.is_valid){
         // Measures the line timing of a real capture. Exposure of a line = time between two TG pulses
         TimingArgs& t = args.timingargs;
+        if(t.freq > 0) CCD_Ctrl::ccdClockHz = t.freq;
+        if(t.dataclk >= 0) CCD_Ctrl::dataClockHz = t.dataclk;
+        if(t.sampledelay > -100) CCD_Ctrl::sampleDelay = t.sampledelay;
         CCD_Ctrl ccd;
         LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
@@ -261,8 +267,8 @@ int main(int argc, char* argv[]) {
         // Raw readout diagnostics. Checks the 32 marker words, zero/repeated words, byte lane alignment and readout time
         PioArgs& t = args.pioargs;
         if(t.freq > 0) CCD_Ctrl::ccdClockHz = t.freq;
-        CCD_Ctrl::dataClockHz = t.dataclk;
-        CCD_Ctrl::sampleDelay = t.delay;
+        if(t.dataclk >= 0) CCD_Ctrl::dataClockHz = t.dataclk;
+        if(t.delay > -100) CCD_Ctrl::sampleDelay = t.delay;
         CCD_Ctrl ccd;
         LinearCamCtrl cam(motors,ccd);
         pinctrl.setEnablePin(false);
@@ -279,7 +285,7 @@ int main(int argc, char* argv[]) {
         ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
         const CCD_Parameters params = ccd.getCurParams();
         const uint32_t words = params.samplesPerLine / SAMPLESPERBUFFER;
-        std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (t.dataclk > 0 ? t.dataclk : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << t.delay << std::endl;
+        std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (CCD_Ctrl::dataClockHz > 0 ? CCD_Ctrl::dataClockHz : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << CCD_Ctrl::sampleDelay << std::endl;
         std::cout << "clk_sys " << CCD_Ctrl::sysClockHz() << " Hz, res " << t.resdiv << ", " << words << " words/line, lines " << t.lines << std::endl;
         if(!t.dmactrl.empty()){
             const uint32_t ctrl = std::stoul(t.dmactrl,nullptr,0);
