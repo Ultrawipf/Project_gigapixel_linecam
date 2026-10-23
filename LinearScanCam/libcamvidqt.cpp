@@ -38,22 +38,40 @@ QPixmap LibCamVidQt::getCurPixmap(){
  * Process an mjpeg stream and display in this label
  */
 void LibCamVidQt::processFrame(){
-    QByteArray buf = libcameraProc.readAllStandardOutput();
-    streamBuf.append(buf);
-    int ind_start_bytes = streamBuf.indexOf(QByteArray::fromHex("ffd8"));
-    int ind_end_bytes = streamBuf.indexOf(QByteArray::fromHex("ffd9"));
-    if(ind_start_bytes != -1 && ind_end_bytes != -1) {
-        if(ind_start_bytes < ind_end_bytes){
-            QByteArray image_data = streamBuf.mid(ind_start_bytes, ind_end_bytes + 2);
-            streamBuf = streamBuf.mid(ind_end_bytes+2);
-            if(curPixmap.loadFromData(image_data, "JPG")) {
-                this->setPixmap(curPixmap.scaled(this->width(),this->height(), Qt::KeepAspectRatio));
-            }else{
-                this->setText("Error loading pixmap");
-            }
-        }else{
-            this->setText("Error finding jpeg" + QString::number(ind_start_bytes) + ":" +  QString::number(ind_end_bytes));
+    static const QByteArray SOI = QByteArray::fromHex("ffd8");
+    static const QByteArray EOI = QByteArray::fromHex("ffd9");
+    constexpr qsizetype MAXBUFFER = 16*1024*1024; // Never let a broken stream grow without bound
+
+    streamBuf.append(libcameraProc.readAllStandardOutput());
+    // Extract all complete frames but only decode the newest one
+    QByteArray image_data;
+    while(true){
+        qsizetype start = streamBuf.indexOf(SOI);
+        if(start < 0){
+            // No frame start. Keep the last byte in case it is the first half of a marker
+            streamBuf = streamBuf.right(1);
+            break;
         }
+        if(start > 0){
+            streamBuf.remove(0,start); // Drop bytes before the frame start (resync)
+        }
+        qsizetype end = streamBuf.indexOf(EOI,SOI.size());
+        if(end < 0){
+            break; // Frame not complete yet
+        }
+        image_data = streamBuf.left(end + EOI.size());
+        streamBuf.remove(0,end + EOI.size());
+    }
+    if(streamBuf.size() > MAXBUFFER){
+        streamBuf.clear();
+    }
+    if(image_data.isEmpty()){
+        return;
+    }
+    if(curPixmap.loadFromData(image_data, "JPG")) {
+        this->setPixmap(curPixmap.scaled(this->width(),this->height(), Qt::KeepAspectRatio));
+    }else{
+        this->setText("Error loading pixmap");
     }
 }
 
@@ -84,19 +102,33 @@ void LibCamVidQt::stop(){
 }
 #else
 void LibCamVidQt::start(){
+    if(libcameraProc.state() != QProcess::NotRunning){
+        return; // Still running or stopping
+    }
     streamBuf.clear();
     qDebug() << "Starting camera";
-    libcameraProc.setProcessChannelMode(QProcess::MergedChannels);
-    libcameraProc.start(CAMERACMD,CAMERAARGS+QStringList({"--tuning-file",camtunefile}));
+    // stdout carries the MJPEG stream. Don't mix log output into it
+    libcameraProc.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    QStringList args = CAMERAARGS;
+    if(!camtunefile.isEmpty()){
+        args << "--tuning-file" << camtunefile;
+    }
+    libcameraProc.start(CAMERACMD,args);
     running = true;
 }
 
 void LibCamVidQt::stop(){
     qDebug() << "Stopping camera";
-    libcameraProc.terminate();
+    running = false; // Errors caused by stopping are expected
+    if(libcameraProc.state() != QProcess::NotRunning){
+        libcameraProc.terminate();
+        if(!libcameraProc.waitForFinished(1000)){
+            libcameraProc.kill();
+            libcameraProc.waitForFinished(1000);
+        }
+    }
     streamBuf.clear();
     this->setText(IDLETEXT);
-    running = false;
 }
 
 #endif
