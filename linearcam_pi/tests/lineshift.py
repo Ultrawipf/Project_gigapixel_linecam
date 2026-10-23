@@ -14,11 +14,17 @@ px[:, 0::2] = d >> 16
 px[:, 1::2] = d & 0xffff
 ref = np.median(px, axis=0)
 n = px.shape[1]
+if np.std(ref) < 200:
+    # A dark or flat scene has nothing to align on. Every shift matches equally well
+    print(f"lines {px.shape[0]}, no signal (reference std {np.std(ref):.0f}), needs a lit static scene")
+    sys.exit(0)
 lo, hi = maxs, n - maxs
 shifts = []
 for line in px:
     err = [np.mean(np.abs(line[lo + s:hi + s] - ref[lo:hi])) for s in range(-maxs, maxs + 1)]
-    shifts.append(int(np.argmin(err)) - maxs)
+    best = int(np.argmin(err))
+    # Only count a shift if it matches clearly better than no shift
+    shifts.append(best - maxs if err[best] < 0.8 * err[maxs] else 0)
 shifts = np.array(shifts)
 vals, counts = np.unique(shifts, return_counts=True)
 bad = np.nonzero(shifts != 0)[0]

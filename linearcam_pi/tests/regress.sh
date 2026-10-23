@@ -5,6 +5,7 @@
 # Compares against regress_ref.txt and prints PASS/FAIL per check. Exit code 1 on any FAIL.
 # The sensor must look at a static scene (the check does not move the slide): every line is
 # compared with the median line to find lines shifted by whole pixel clocks (TG timing).
+# The alignment checks need light: a dark scene gives RESULT INCONCLUSIVE (exit code 2).
 cd "$(dirname "$0")/../.." || exit 2
 B=./linearcam_pi/linearcam_pi
 T=linearcam_pi/tests
@@ -43,6 +44,12 @@ while read -r res words lag ref; do
     nmk=$(echo "$bl" | sed -n 's/.*markers bad \([0-9]*\).*/\1/p')
     dev=$(awk -v a="$rd" -v b="$ref" 'BEGIN{printf "%.1f", (a-b)/b*100}')
     ok=$(awk -v d="$dev" 'BEGIN{print (d < 2 && d > -2) ? 1 : 0}')
+    if echo "$ls" | grep -q "no signal"; then
+        # Dark scene: readout time and markers are still checked, the alignment checks need light
+        if [ "$nmk" = 0 ] && [ "$ok" = 1 ]; then st=NOSIGNAL; else st=FAIL; fi
+        echo "$st res $res clk $clk readout ${rd}us (ref ${ref}us, ${dev}%) | markers bad $nmk | $ls"
+        continue
+    fi
     if [ "$nbad" = 0 ] && [ "$nmk" = 0 ] && [ "$nsh" = 0 ] && [ "$ok" = 1 ]; then st=PASS; else st=FAIL; fi
     echo "$st res $res clk $clk readout ${rd}us (ref ${ref}us, ${dev}%) | $bl | shifted lines $nsh"
 done < $T/regress_ref.txt
@@ -50,9 +57,14 @@ rm -f /tmp/regress.bin
 }
 
 run > "$TMP"
-grep -q '^FAIL\|^ABORT' "$TMP" && echo "RESULT FAIL" >> "$TMP" || echo "RESULT PASS" >> "$TMP"
+if grep -q '^FAIL\|^ABORT' "$TMP"; then
+    echo "RESULT FAIL" >> "$TMP"; st=1
+elif grep -q '^NOSIGNAL' "$TMP"; then
+    echo "RESULT INCONCLUSIVE (scene too dark, light it and repeat)" >> "$TMP"; st=2
+else
+    echo "RESULT PASS" >> "$TMP"; st=0
+fi
 cat "$TMP" | tee -a "$OUT" > /dev/null
 [ "$OUT" != /dev/stdout ] && cat "$TMP"
-grep -q '^RESULT PASS' "$TMP"; st=$?
 rm -f "$TMP"
 exit $st
