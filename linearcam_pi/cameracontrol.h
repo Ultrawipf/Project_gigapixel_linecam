@@ -97,6 +97,9 @@ public:
     bool fixedLinePeriod = true;
     int linePeriodUs = 0;
     static constexpr uint32_t periodCalibLines = 6;
+    // Lines discarded at capture start on top of the line correction delay (lineBuffers). The sensor needs
+    // about 5 lines to settle and the output must only contain lines taken with the fixed period
+    static constexpr uint32_t startupSkipLines = periodCalibLines + 3;
 
     struct ExposureStats{
         int requestedUs = 0;     // linePeriodUs at capture start, 0 = shortest

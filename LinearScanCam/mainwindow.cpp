@@ -322,7 +322,7 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
     float scanstartpos = ctrl->imageCenterPosMM;
     if(!s.nomovemode){
         scanstartpos = (ctrl->imageCenterPosMM - ctrl->imageStartPosMM) * (1.0-s.widthscale) + ctrl->imageStartPosMM;
-        scanstartpos -= (params.lineBuffers * params.moveLines * ctrl->ccd->lineDistMM);
+        scanstartpos -= ((params.lineBuffers + ctrl->startupSkipLines) * params.moveLines * ctrl->ccd->lineDistMM);
     }
     statusMsgCb("Moving to start pos...");
     motor.moveToMMBlocking(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);

@@ -127,8 +127,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
     if(ext == "png"){
 
         std::cout << "Save as PNG" << std::endl;
-        const int extraskip = 3;
-        int bonuslines = params.lineBuffers+extraskip;
+        int bonuslines = params.lineBuffers+startupSkipLines;
         /* Creating an encoder context requires a flag */
         FILE* pngfile = fopen(filename.c_str(),"wb");
         if(!pngfile){
@@ -141,7 +140,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
 
         std::thread pngthread;
         std::vector<ccdpixel> pngline; // Line owned by the encoder thread. Must outlive the thread
-        startCapture();
+        startCapture(nomovemode);
         captureInProgress = true;
         for(int line = 0;line < lines+bonuslines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
@@ -180,7 +179,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
             std::cout << "WARNING: Bitmap header size set to 0 due to large size" << std::endl;
         }
 
-        startCapture();
+        startCapture(nomovemode);
         captureInProgress = true;
         for(int line = 0;line < lines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
@@ -210,15 +209,14 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
         // Raw
         std::thread thread;
         std::cout << "Save raw" << std::endl;
-        const int extraskip = 3;
         /* Creating an encoder context requires a flag */
         FILE* file = fopen(filename.c_str(),"wb");
         if(!file){
             throw std::runtime_error("Cannot open image file " + filename);
         }
-        startCapture();
+        startCapture(nomovemode);
         captureInProgress = true;
-        int bonuslines = params.lineBuffers+extraskip;
+        int bonuslines = params.lineBuffers+startupSkipLines;
         for(int line = 0;line < lines + bonuslines && captureInProgress;line++){
             std::vector<ccdpixel> linedata = captureLine(usDelay,nomovemode);
             if(line < bonuslines){
