@@ -90,6 +90,9 @@ private:
     void endOperation();
     void updateControlsEnabled();
     void runMotorOperation(const QString& name,std::function<QFuture<void>()> start,const QString& doneMsg = QString());
+    void setCancellable(bool cancellable);
+    void cancelOperation();
+    void interruptibleSleep(int seconds);
 
     void runJob(std::function<void()> job);
     void captureImageJob(CaptureSettings s,fs::path newimagename,fs::path recordimagename,int pngCompressionOvr);
@@ -108,6 +111,8 @@ private:
     bool motorBusy = false;
     bool operationActive = false;
     QString activeOperation;
+    std::atomic<bool> abortRequested = false; // Set by cancel, polled by jobs
+    struct JobCancelled{}; // Thrown inside jobs to stop after cleanup
 
     float curMovementSize = 5;
 

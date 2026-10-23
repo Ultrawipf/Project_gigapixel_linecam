@@ -34,6 +34,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->stackedWidget->setCurrentWidget(ui->page_boot);
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
     updateControlsEnabled(); // Everything disabled until the camera is ready
+    ui->pushButton_cancel->setVisible(false);
+    connect(ui->pushButton_cancel,&QPushButton::clicked,this,&MainWindow::cancelOperation);
 
     qDebug() << "Startpos:" << ctrl->imageStartPosMM << "End:" << ctrl->imageEndPosMM << "Center:" << ctrl->imageCenterPosMM;
 
@@ -158,6 +160,7 @@ bool MainWindow::tryBeginOperation(const QString& name){
     }
     operationActive = true;
     activeOperation = name;
+    abortRequested = false;
     updateControlsEnabled();
     return true;
 }
@@ -165,7 +168,32 @@ bool MainWindow::tryBeginOperation(const QString& name){
 void MainWindow::endOperation(){
     operationActive = false;
     activeOperation.clear();
+    setCancellable(false);
     updateControlsEnabled();
+}
+
+// Shows the cancel button for the running operation
+void MainWindow::setCancellable(bool cancellable){
+    ui->pushButton_cancel->setVisible(cancellable);
+    ui->pushButton_cancel->setEnabled(cancellable);
+}
+
+void MainWindow::cancelOperation(){
+    if(!operationActive){
+        return;
+    }
+    qDebug() << "Cancel" << activeOperation;
+    abortRequested = true;
+    ctrl->abortCapture(); // Stops the line loop if a scan is running
+    ui->pushButton_cancel->setEnabled(false);
+    statusMsgCb("Cancelling...");
+}
+
+// Sleeps up to seconds, returns early on cancel. Job thread
+void MainWindow::interruptibleSleep(int seconds){
+    for(int i = 0;i < seconds*10 && !abortRequested;i++){
+        QThread::msleep(100);
+    }
 }
 
 // Starts a motor movement as an operation. doneMsg is shown when it finished
@@ -188,6 +216,8 @@ void MainWindow::runJob(std::function<void()> job){
     (void)QtConcurrent::run(&pool,[this,job](){
         try{
             job();
+        }catch(const JobCancelled&){
+            statusMsgCb("Cancelled");
         }catch(const std::exception& e){
             qDebug() << "Job failed:" << e.what();
             statusMsgCb(QString("Error: ") + e.what());
@@ -259,6 +289,7 @@ void MainWindow::captureImage(){
     if(!tryBeginOperation("Capturing image")){
         return;
     }
+    setCancellable(true);
     statusMsgCb("Starting image capture...");
     CaptureSettings s = readCaptureSettings((CCD_Resolution)ui->comboBox_resolution->currentIndex());
     fs::path recordimagename = rawTempFile;
@@ -289,13 +320,25 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
     }
     statusMsgCb("Moving to start pos...");
     motor.moveToMMBlocking(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
-    QThread::sleep(s.delayS);
+    interruptibleSleep(s.delayS);
     const float moveBackPos = motor.getCurPos();
+    if(abortRequested){
+        throw JobCancelled();
+    }
 
     // Capture the image
     statusMsgCb("Capturing image...");
     motor.enableProgress = false;
     ctrl->captureImageBlocking(recordimagename.string(),lines,s.exposureUs,s.nomovemode);
+    if(abortRequested){
+        // Partial scan. Discard it and return to the start position
+        std::error_code ec;
+        fs::remove(recordimagename,ec);
+        motor.enableProgress = true;
+        statusMsgCb("Cancelled, moving back...");
+        motor.moveToMMBlocking(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+        throw JobCancelled();
+    }
 
     // Move back while encoding and show image
     statusMsgCb("Processing image...");
@@ -332,6 +375,7 @@ void MainWindow::capturePreviewImage(){
     if(!tryBeginOperation("Capturing preview")){
         return;
     }
+    setCancellable(true);
     statusMsgCb("Starting preview capture...");
     ui->pushButton_savepreview->setEnabled(false);
     CaptureSettings s = readCaptureSettings(CCD_Resolution::Preview); // Lowest resolution
@@ -354,10 +398,22 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     statusMsgCb("Moving to start pos...");
     motor.moveToMMBlocking(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     const float moveBackPos = motor.getCurPos();
+    if(abortRequested){
+        throw JobCancelled();
+    }
 
     statusMsgCb("Capturing preview...");
     motor.enableProgress = false;
     ctrl->captureImageBlocking(previewFile.string(),lines,s.exposureUs,s.nomovemode);
+    if(abortRequested){
+        // Truncated preview file is not a valid image
+        std::error_code ec;
+        fs::remove(previewFile,ec);
+        motor.enableProgress = true;
+        statusMsgCb("Cancelled, moving back...");
+        motor.moveToMMBlocking(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
+        throw JobCancelled();
+    }
 
     runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);});
     auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
