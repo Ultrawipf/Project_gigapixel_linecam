@@ -13,6 +13,8 @@
 #include <deque>
 #include <mutex>
 #include <condition_variable>
+#include <pthread.h>
+#include <sched.h>
 
 static int64_t steadyNs(){
     return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -118,6 +120,37 @@ void LinearCamCtrl::abortImageCapture(){
     captureInProgress = false;
 }
 
+// Realtime priority for the capture loop and its readout threads (they inherit it). Without it the
+// scheduler sometimes starts a line up to ~1.5 ms late in the GUI app, which lengthens that line's exposure.
+// Needs CAP_SYS_NICE or an rtprio limit for the user (e.g. "pi - rtprio 60" in /etc/security/limits.d/).
+// Without permission the capture runs with normal priority and a warning is printed once
+class RealtimeScope{
+public:
+    RealtimeScope(){
+        pthread_getschedparam(pthread_self(),&oldPolicy,&oldParam);
+        sched_param param{};
+        param.sched_priority = CAPTURE_RT_PRIORITY;
+        active = pthread_setschedparam(pthread_self(),SCHED_FIFO,&param) == 0;
+        static std::atomic<bool> warned = false;
+        if(!active && !warned.exchange(true)){
+            std::cout << "No realtime priority for the capture (needs rtprio limit or CAP_SYS_NICE), lines may start late" << std::endl;
+        }
+    }
+    ~RealtimeScope(){
+        if(active){
+            pthread_setschedparam(pthread_self(),oldPolicy,&oldParam);
+        }
+    }
+    static void normalPriority(){
+        sched_param param{};
+        pthread_setschedparam(pthread_self(),SCHED_OTHER,&param);
+    }
+private:
+    int oldPolicy = SCHED_OTHER;
+    sched_param oldParam{};
+    bool active = false;
+};
+
 // Writes lines on its own thread so a slow encode or file write never delays the next line start
 // (which would lengthen that line's exposure). Lines are written in order. push() only blocks when
 // maxLines are waiting, finish() writes the rest and stops the thread
@@ -146,6 +179,7 @@ public:
     }
 private:
     void run(){
+        RealtimeScope::normalPriority(); // Encoding must not compete with the capture threads
         while(true){
             std::vector<ccdpixel> line;
             {
@@ -179,6 +213,7 @@ void LinearCamCtrl::captureImage(std::string filename,uint32_t lines,int usDelay
     if(timingCsv){
         recordTiming = true;
     }
+    RealtimeScope realtime; // For the whole capture, restored on return
 
     //float curPos = motors.slideMotor_p->getActualPos();
     uint32_t linewidth = params.validPixelEnd - params.validPixelBegin;

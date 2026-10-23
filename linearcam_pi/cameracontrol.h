@@ -26,6 +26,9 @@
 #ifndef LINEPERIOD_EXTRA_US
 #define LINEPERIOD_EXTRA_US 200
 #endif
+#ifndef CAPTURE_RT_PRIORITY
+#define CAPTURE_RT_PRIORITY 50 // SCHED_FIFO priority of the capture threads, if permitted
+#endif
 #ifndef LINEPERIOD_LATE_US
 #define LINEPERIOD_LATE_US 50 // A line starting later than this after its deadline counts as late
 #endif
