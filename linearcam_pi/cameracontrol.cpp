@@ -10,6 +10,10 @@
 #include <iterator>
 #include <stdexcept>
 
+static int64_t steadyNs(){
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 #include <spng.h>
 
 TMC2209_motor* Motors::slideMotor_p;
@@ -84,6 +88,8 @@ void LinearCamCtrl::startCapture(bool nomovemode){
     }else{
         this->imageCorrection = std::make_unique<CCD_ImageCorrection>(ccd.getCurParams().samplesPerLine,2);
     }
+    lineTimings.clear();
+    lastLineStart.reset();
     ccd.startCapture();
     // clear ccd
     // Clear last buffer
@@ -244,12 +250,24 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     //uint32_t buf[tgperiod]; // Number of samples per line
     uint32_t* buf = (uint32_t*)std::malloc(tgperiod * sizeof(uint32_t));
     //std::cout << "Startcapture "<< linelength << " TG " << tgperiod << std::endl;
+    LineTiming timing;
     processThread = std::thread([&](){
+        // Fixed line period: start each readout (TG) at an absolute time instead of sleeping after the processing
+        if(linePeriodUs > 0 && lastLineStart){
+            const auto deadline = *lastLineStart + std::chrono::microseconds(linePeriodUs);
+            std::this_thread::sleep_until(deadline - std::chrono::microseconds(LINEPERIOD_SPIN_US));
+            while(std::chrono::steady_clock::now() < deadline){} // Spin the last part, sleep wakeup is too coarse
+        }
+        lastLineStart = std::chrono::steady_clock::now();
+        if(recordTiming) timing.readStart = steadyNs();
         ccd.captureData(buf,tgperiod,tgperiod); // capture one line of raw data
+        if(recordTiming) timing.readEnd = steadyNs();
     });
 
     if(!nomovemode){
+        if(recordTiming) timing.moveStart = steadyNs();
         moveLines(params.moveLines); // Move while capture? faster?
+        if(recordTiming) timing.moveEnd = steadyNs();
         uint32_t stride = params.lineOffsets.size(); // Offset previous sample
         for(int i = 0;i<stride;i++){
             imageCorrection->offsetLine(i,stride,-params.lineOffsets[i]);
@@ -257,6 +275,9 @@ std::vector<ccdpixel> LinearCamCtrl::captureLine(int usDelay,bool nomovemode){
     }
 
     processThread.join(); // Join capture
+    if(recordTiming){
+        lineTimings.push_back(timing);
+    }
 
     // Maybe add delay to increase exposure time...
     if(usDelay){

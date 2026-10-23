@@ -13,6 +13,13 @@
 #include <functional>
 #include <optional>
 #include <atomic>
+#include <vector>
+
+#include <chrono>
+
+#ifndef LINEPERIOD_SPIN_US
+#define LINEPERIOD_SPIN_US 200 // Busy wait before a fixed line start
+#endif
 
 #ifndef PNG_COMPRESSION_LEVEL
 #define PNG_COMPRESSION_LEVEL 0
@@ -37,6 +44,14 @@ public:
 };
 
 
+// Per line timestamps for exposure measurements. Steady clock, ns
+struct LineTiming{
+    int64_t readStart = 0; // Right before the data SM restart. The SM fires TG a few us later
+    int64_t readEnd = 0;   // Line read from the PIO
+    int64_t moveStart = 0;
+    int64_t moveEnd = 0;
+};
+
 class LinearCamCtrl
 {
 public:
@@ -60,6 +75,14 @@ public:
 
     float pnggamma = 1.0;
 
+    // Exposure = time between two TG pulses. Set recordTiming to log every captured line into lineTimings
+    bool recordTiming = false;
+    std::vector<LineTiming> lineTimings;
+
+    // > 0: start every line linePeriodUs after the previous one. Exposure then no longer depends on the processing time.
+    // Must be longer than readout + processing of one line, otherwise lines start late
+    int linePeriodUs = 0;
+
     std::unique_ptr<CCD_ImageCorrection> imageCorrection;
     CCD_Ctrl& ccd;
     Motors& motors;
@@ -67,6 +90,7 @@ protected:
     void runOffsetLines();
     //CCD_Ctrl ccd;
     std::thread processThread;
+    std::optional<std::chrono::steady_clock::time_point> lastLineStart;
     std::atomic<bool> captureInProgress = false; // Cleared by abortImageCapture() from other threads
 };
 
