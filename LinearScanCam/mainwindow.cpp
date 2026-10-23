@@ -275,7 +275,9 @@ MainWindow::CaptureSettings MainWindow::readCaptureSettings(CCD_Resolution res){
     s.res = res;
     s.gainOfs = gainOfsFromUi();
     s.nomovemode = ui->radioButton_linecam->isChecked();
-    s.exposureUs = ui->spinBox_exposuretime->value()*1000;
+    s.captureRes = (CCD_Resolution)ui->comboBox_resolution->currentIndex();
+    s.captureResName = ui->comboBox_resolution->currentText();
+    s.exposureUs = exposureAtBase() ? 0 : ui->spinBox_exposuretime->value()*1000;
     s.delayS = ui->spinBox_delay->value();
     s.widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     if(s.nomovemode) s.widthscale *= nomovemult;
@@ -422,7 +424,7 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     statusMsgCb("Capturing preview...");
     ctrl->pngCompressionLevel = PNG_COMPRESSION_LEVEL;
     motor.enableProgress = false;
-    ctrl->linePeriodUs = s.exposureUs;
+    ctrl->linePeriodUs = 0; // Preview scans fast at its own base exposure
     ctrl->captureImageBlocking(previewFile.string(),lines,0,s.nomovemode);
     if(abortRequested){
         // Truncated preview file is not a valid image
@@ -438,10 +440,20 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     // Show preview
     showImageFile(previewFile);
+    // The capture collects more light than the preview: longer exposure, and below ~10k pixels per line the
+    // preview bins pixels (CCD_Parameters::sensitivity). Show the factor so the preview can be judged
+    const CCD_Parameters captureParams = CCD_Ctrl::getParamsFromResolution(s.captureRes);
+    const float captureExposureUs = std::max<float>(s.exposureUs,LinearCamCtrl::baseExposureUs(captureParams));
+    const float previewExposureUs = ctrl->exposureStats.periodUs;
+    const float factor = (captureParams.sensitivity * captureExposureUs) / (params.sensitivity * previewExposureUs);
+    QString previewText = QString("Preview %1 ms").arg(previewExposureUs/1000.0,0,'f',1);
+    if(factor > 1.25f || factor < 0.8f){
+        previewText += QString(", capture %1 ms %2 is x%3 brighter").arg(captureExposureUs/1000.0,0,'f',1).arg(s.captureResName).arg(factor,0,'f',1);
+    }
     statusMsgCb("Preview capture done");
     motor.enableProgress = true;
     mover.waitForFinished();
-    statusMsgCb("Done. " + exposureSummary());
+    statusMsgCb("Done. " + previewText);
 }
 
 // Exposure actually used by the last capture. Late lines got a longer exposure than the others
@@ -495,7 +507,9 @@ void MainWindow::restoreSettings(ConfStore& config){
 
     ctrl->pnggamma = c["img"]["pnggamma"];
     ui->doubleSpinBox_gamma->setValue(ctrl->pnggamma);
+    ui->spinBox_exposuretime->setMinimum(0); // Stored 0 = base
     ui->spinBox_exposuretime->setValue(c["img"]["exposurems"]);
+    updateExposureBase();
 
     // Motor
     ctrl->slideMotorQt.motor->homeSG = c["mot"]["slidesg"];
@@ -517,7 +531,7 @@ void MainWindow::saveSettings(ConfStore& config){
     c["ccd"]["res"] = ui->comboBox_resolution->currentIndex();
     //c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     c["img"]["pnggamma"] = ctrl->pnggamma;
-    c["img"]["exposurems"] = ui->spinBox_exposuretime->value();
+    c["img"]["exposurems"] = exposureAtBase() ? 0.0 : ui->spinBox_exposuretime->value();
     config.saveSettings(CONFFILE);
 }
 
@@ -634,7 +648,26 @@ void MainWindow::on_radioButton_linearscan_clicked()
 }
 
 
+// The exposure starts at the base exposure (shortest line period) of the capture resolution, computed from
+// the readout at the CCD clock. "base" follows resolution changes, longer exposures are kept
+void MainWindow::updateExposureBase(){
+    const CCD_Parameters p = CCD_Ctrl::getParamsFromResolution((CCD_Resolution)ui->comboBox_resolution->currentIndex());
+    const double baseMs = std::ceil(LinearCamCtrl::baseExposureUs(p) / 100.0) / 10.0;
+    QDoubleSpinBox* sb = ui->spinBox_exposuretime;
+    const bool atBase = exposureAtBase();
+    sb->setMinimum(baseMs);
+    if(atBase){
+        sb->setValue(baseMs);
+    }
+    ui->label_4->setText(QString("Exposure\nbase %1 ms").arg(baseMs,0,'f',1));
+}
+
+bool MainWindow::exposureAtBase(){
+    return ui->spinBox_exposuretime->value() <= ui->spinBox_exposuretime->minimum();
+}
+
 void MainWindow::updateResEstimate(){
+    updateExposureBase();
     CCD_Parameters nextparams = ctrl->ccd->getParamsFromResolution((CCD_Resolution)ui->comboBox_resolution->currentIndex());
     int height = nextparams.validPixelEnd - nextparams.validPixelBegin;
     int width = ((ui->horizontalSlider_imagewidth->value() / 1000.0f) * ctrl->fullResLines) / nextparams.moveLines;

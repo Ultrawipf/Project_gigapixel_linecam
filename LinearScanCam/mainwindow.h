@@ -37,7 +37,9 @@ public:
         CCD_Resolution res = CCD_Resolution::Preview;
         CCD_GainOfs gainOfs;
         bool nomovemode = false;
-        int exposureUs = 0;
+        int exposureUs = 0; // Line period of the capture, 0 = base exposure of captureRes
+        CCD_Resolution captureRes = CCD_Resolution::Full; // Resolution the exposure is set for
+        QString captureResName;
         int delayS = 0;
         float widthscale = 1;
     };
@@ -45,6 +47,8 @@ public:
     CCD_GainOfs gainOfsFromUi();
     CaptureSettings readCaptureSettings(CCD_Resolution res);
     void updateResEstimate();
+    void updateExposureBase();
+    bool exposureAtBase();
 
     // Runs f on the GUI thread. Direct call if already on it, queued otherwise
     template<typename F>

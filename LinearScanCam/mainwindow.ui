@@ -1627,7 +1627,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
                </widget>
               </item>
               <item>
-               <widget class="QSpinBox" name="spinBox_exposuretime">
+               <widget class="QDoubleSpinBox" name="spinBox_exposuretime">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -1644,19 +1644,22 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
 </string>
                 </property>
                 <property name="specialValueText">
-                 <string>min</string>
+                 <string>base</string>
+                </property>
+                <property name="decimals">
+                 <number>1</number>
                 </property>
                 <property name="suffix">
                  <string>ms</string>
                 </property>
                 <property name="maximum">
-                 <number>1000</number>
+                 <double>1000.000000000000000</double>
                 </property>
                 <property name="singleStep">
-                 <number>1</number>
+                 <double>0.500000000000000</double>
                 </property>
                 <property name="value">
-                 <number>0</number>
+                 <double>0.000000000000000</double>
                 </property>
                </widget>
               </item>
