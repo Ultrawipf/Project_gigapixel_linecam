@@ -125,8 +125,9 @@ void MainWindow::buttonExtCb(uint8_t buttons){
     }
 }
 
+// Thread safe. May be called from worker threads
 void MainWindow::statusMsgCb(QString status){
-    ui->label_status->setText(status);
+    runOnGui([this,status](){ui->label_status->setText(status);});
 }
 
 void MainWindow::busyCb(bool busy){
@@ -157,7 +158,7 @@ void MainWindow::savePreview(){
         this->ui->label_status->setText(infotext);
         //QToolTip::showText(ui->pushButton_savepreview->pos(),infotext, ui->pushButton_savepreview,{},1000);
     };
-    future.then(done);
+    future.then(this,done); // Run on the GUI thread
 
 }
 
@@ -166,6 +167,7 @@ void MainWindow::captureImage(){
 
     bool nomovemode = ui->radioButton_linecam->isChecked();
     int exposuretime = ui->spinBox_exposuretime->value();
+    int delay = ui->spinBox_delay->value(); // Widgets must only be read on the GUI thread
 
     if(ui->stackedWidget->currentWidget() != ui->page_graphic){
         ui->radioButton_linearscan->click();
@@ -231,7 +233,7 @@ void MainWindow::captureImage(){
         scanstartpos -= (params.lineBuffers * params.moveLines * ctrl->ccd->lineDistMM);
     }
     ctrl->slideMotorQt.moveToMM(scanstartpos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel,&pool)
-    .then([this](){QThread::sleep(ui->spinBox_delay->value());})
+    .then([delay](){QThread::sleep(delay);})
     .then(updateposfunc)
     // Capture the image
     .then(capturefunc)
@@ -284,7 +286,7 @@ void MainWindow::capturePreviewImage(){
 
     auto previewDone = [this](){
         //qDebug() << "Move back" << moveBackPos;
-        ui->pushButton_savepreview->setEnabled(true);
+        runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);});
         auto movefut = ctrl->slideMotorQt.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
         // Show preview
         //ui->progressBar_scan->setVisible(false); // Hide progress bar quickly

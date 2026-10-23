@@ -30,6 +30,12 @@ public:
     void applyCcdParams();
     void updateResEstimate();
 
+    // Runs f on the GUI thread. Direct call if already on it, queued otherwise
+    template<typename F>
+    void runOnGui(F&& f){
+        QMetaObject::invokeMethod(this,std::forward<F>(f),Qt::AutoConnection);
+    }
+
 public slots:
     void setReady(bool ready);
     void progressCb(int progress);
