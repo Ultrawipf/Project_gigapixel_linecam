@@ -1,5 +1,7 @@
 #include "imageviewqt.h"
 #include <QTouchEvent>
+#include <cstdio>
+#include <imagehelpers.hpp>
 
 ImageviewQt::ImageviewQt(QWidget* parent)
     : QGraphicsView(parent)
@@ -57,6 +59,39 @@ void ImageviewQt::zoomToFit(){
 //     curline = 0;
 // }
 
+
+QImage ImageviewQt::loadImage(const std::filesystem::path& file){
+    QImage image(QString::fromStdString(file.string()));
+    if(image.isNull() || file.extension() != ".png"){
+        return image;
+    }
+    double gamma = 0;
+    FILE* f = fopen(file.string().c_str(),"rb");
+    if(f){
+        gamma = png::getPngGamma(f);
+        fclose(f);
+    }
+    if(gamma <= 0){
+        return image;
+    }
+    return applyGamma(image,gamma);
+}
+
+QImage ImageviewQt::applyGamma(const QImage& image,double fileGamma){
+    const std::vector<uint8_t> lut = png::gammaLut16to8(fileGamma);
+    const QImage src = image.convertToFormat(QImage::Format_RGBX64); // 8 bit sources are scaled to 16 bit
+    QImage out(src.size(),QImage::Format_RGB888);
+    for(int y = 0;y<src.height();y++){
+        const QRgba64* in = reinterpret_cast<const QRgba64*>(src.constScanLine(y));
+        uchar* o = out.scanLine(y);
+        for(int x = 0;x<src.width();x++){
+            *o++ = lut[in[x].red()];
+            *o++ = lut[in[x].green()];
+            *o++ = lut[in[x].blue()];
+        }
+    }
+    return out;
+}
 
 void ImageviewQt::showFullImage(QImage image){
     qDebug() << "Showing new image";

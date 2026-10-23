@@ -238,7 +238,7 @@ void MainWindow::runJob(std::function<void()> job){
 
 // Thread safe. Loads the image in the calling thread and displays it on the GUI thread
 void MainWindow::showImageFile(fs::path file){
-    QImage img(QString::fromStdString(file.string()));
+    QImage img = ImageviewQt::loadImage(file); // Applies the png gamma
     runOnGui([this,img](){ui->graphicsView->showFullImage(img);});
 }
 
@@ -260,7 +260,7 @@ void MainWindow::savePreview(){
             runOnGui([this](){ui->pushButton_savepreview->setEnabled(true);}); // Preview is still there
             throw;
         }
-        fs::path newpath = ctrl->reencodePng(newfile,lowresfile,downsample,pngCompression,SPNG_FMT_RGB8,true);
+        fs::path newpath = ctrl->reencodePng(newfile,lowresfile,downsample,pngCompression,lowresFormat,false);
         if(newpath.has_filename()){
             statusMsgCb(QString("Saved image to: ") + QString::fromStdString(newpath.filename().string()));
         }else{
@@ -359,7 +359,7 @@ void MainWindow::captureImageJob(CaptureSettings s,fs::path newimagename,fs::pat
 
     statusMsgCb("Processing preview...");
     fs::path lowresfile = imagepathlowres/(newimagename.filename());
-    ctrl->reencodePng(img,lowresfile,baseDownsamplePreview-params.moveLines,pngCompressionOvr,SPNG_FMT_RGB8,true);
+    ctrl->reencodePng(img,lowresfile,baseDownsamplePreview-params.moveLines,pngCompressionOvr,lowresFormat,false);
     statusMsgCb("Preview Done");
     showImageFile(lowresfile);
 

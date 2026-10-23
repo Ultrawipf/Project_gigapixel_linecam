@@ -129,5 +129,7 @@ private:
     const float nomovemult = 2.0f;
 
     static constexpr int baseDownsamplePreview = CCD_Ctrl::maxLineMovementSkip+1;
+    // Low res copies keep 16 bit linear data and the gAMA chunk. The gamma curve is applied when an image is displayed
+    static constexpr spng_format lowresFormat = SPNG_FMT_PNG;
 };
 #endif // MAINWINDOW_H

@@ -11,6 +11,8 @@
 #include <functional>
 #include <assert.h>
 #include <cstring>
+#include <cmath>
+#include <algorithm>
 
 // Test different options
 #define DEFAULT_FILTER SPNG_FILTER_CHOICE_SUB
@@ -106,6 +108,32 @@ static PngImageInfo getPngInfo(FILE* file){
     spng_get_phys(ctx,&info.phys);
     spng_ctx_free(ctx);
     return info;
+}
+
+// Display gamma used by SPNG_DECODE_GAMMA. Output = input^(1/(fileGamma*screenGamma))
+static constexpr double screenGamma = 2.2;
+
+// Reads the gAMA chunk of a png. Returns 0 if the file has none
+static double getPngGamma(FILE* file){
+    spng_ctx* ctx = spng_ctx_new(0);
+    spng_set_png_file(ctx, file);
+    double gamma = 0;
+    if(spng_get_gama(ctx,&gamma) != SPNG_OK){
+        gamma = 0;
+    }
+    spng_ctx_free(ctx);
+    return gamma;
+}
+
+// Maps 16 bit linear samples to 8 bit display values with the same curve as SPNG_DECODE_GAMMA.
+// spng reduces to 8 bit before applying the curve, this keeps the full input precision for the shadows
+static std::vector<uint8_t> gammaLut16to8(double fileGamma){
+    std::vector<uint8_t> lut(65536);
+    const double exponent = 1.0 / (fileGamma * screenGamma);
+    for(size_t i = 0;i<lut.size();i++){
+        lut[i] = (uint8_t)std::min(255.0,std::round(std::pow((double)i / 65535.0,exponent) * 255.0));
+    }
+    return lut;
 }
 
 // Encodes a raw image buffer to png

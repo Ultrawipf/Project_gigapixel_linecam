@@ -3,6 +3,7 @@
 #include <QVariant>
 #include <string>
 #include <iostream>
+#include "imageviewqt.h"
 GalleryQt::GalleryQt(QWidget *parent)
     : QListWidget{parent}
 {
@@ -30,7 +31,7 @@ void GalleryQt::updateContents(){
     }
     for (const auto & entry : fs::directory_iterator(imagepathlowres,ec)){
         if(entry.path().extension() == ".png"){
-            QPixmap img(entry.path().c_str());
+            QPixmap img = QPixmap::fromImage(ImageviewQt::loadImage(entry.path()));
             img = img.transformed(QTransform().rotate(90));
             QListWidgetItem* newItem = new QListWidgetItem(QIcon(img),entry.path().filename().c_str());
             newItem->setFlags(newItem->flags() | Qt::ItemIsEditable);
