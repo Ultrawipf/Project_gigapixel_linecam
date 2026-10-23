@@ -58,8 +58,9 @@ bool CameraControllerQt::init(){
             flag = false;
             ccd->setClock(false); // Disable clock if failed
             emit ccdStatus("FAILED");
+        }else{
+            emit ccdStatus("OK");
         }
-        emit ccdStatus("OK");
     }
     motorfuture.waitForFinished();
     emit motorStatus("OK");
@@ -94,10 +95,10 @@ QFuture<void> CameraControllerQt::captureImageFuture(std::string filename,uint32
     curLineNum = 0;
     curLines = lines;
     auto params = LinearCamCtrl::ccd.getCurParams();
-    previewSkip = std::max<uint32_t>(0,previewDiv - params.moveLines);
+    previewSkip = std::max<int>(1,previewDiv - (int)params.moveLines); // Never 0, used as divisor
     //std::vector<ccdpixel> previewLine;
     previewLine.clear();
-    previewLine.reserve((params.validPixelEnd-params.validPixelEnd) / previewSkip);
+    previewLine.reserve((params.validPixelEnd-params.validPixelBegin) / previewSkip);
     qDebug() << "Preview skip:" << previewSkip;
 
     qDebug() << "Capture image to file: "<< filename.c_str() << " lines " << lines;
