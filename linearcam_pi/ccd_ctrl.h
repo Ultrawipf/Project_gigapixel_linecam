@@ -21,11 +21,14 @@ enum class CCD_Resolution : unsigned int{
 struct CCD_Parameters{
     uint32_t validPixelBegin = 333;
     uint32_t validPixelEnd = 44500;
-    uint32_t samplesPerLine = 122400;
+    uint32_t samplesPerLine = 122400; // 16 bit samples per line, one per CCD clock
     //uint32_t bytesPerColor = 1;
     uint32_t moveLines = 1;
     uint32_t lineBuffers = 0;
     std::vector<int> lineOffsets;
+    // Light collected per exposure time relative to full resolution, measured with "linearcam_pi expcalib".
+    // Below ~10k pixels per line the sensor bins pixels, so these lines collect more signal
+    float sensitivity = 1.0f;
 };
 
 struct CCD_GainOfs{
@@ -122,6 +125,15 @@ public:
     static uint32_t sysClockHz();
 
     static CCD_Parameters getParamsFromResolution(CCD_Resolution res);
+
+    // Line timing model: one 16 bit sample per CCD clock. The correction covers SM restart, ioctl and DMA
+    // overhead and was fitted to the measured readout at 5 and 6 MHz (all resolutions within 0.3 %)
+    static constexpr float readoutScale = 1.011f;
+    static constexpr float readoutOffsetUs = 45.0f;
+    // Processing between two lines (line correction, copies), measured 87..998 us from preview to full
+    static constexpr float processingNsPerSample = 7.7f;
+    static float readoutUs(const CCD_Parameters& p, float clockHz = ccdClockHz);
+    static float lineCostUs(const CCD_Parameters& p, float clockHz = ccdClockHz); // Readout + processing
 
     static void copyRawBufferToFramebuffer(const uint32_t* rawbuf,uint32_t rawbuflen,ccdpixel* framebuf, uint32_t framebuflen,uint8_t offset=FRAMEDATAOFFSET,bool reverse = false);
 

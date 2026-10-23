@@ -13,6 +13,7 @@
 #include <deque>
 #include <mutex>
 #include <condition_variable>
+#include <algorithm>
 #include <pthread.h>
 #include <sched.h>
 
@@ -413,8 +414,13 @@ void LinearCamCtrl::finishPeriodCalibration(){
         slowestUs = std::max<int64_t>(slowestUs,std::chrono::duration_cast<std::chrono::microseconds>(calibStarts[i] - calibStarts[i-1]).count());
     }
     exposureStats.minPeriodUs = slowestUs * LINEPERIOD_MARGIN + LINEPERIOD_EXTRA_US;
-    exposureStats.periodUs = std::max(exposureStats.minPeriodUs,linePeriodUs);
-    std::cout << "Line period " << exposureStats.periodUs << "us (requested " << linePeriodUs << "us, shortest " << exposureStats.minPeriodUs << "us)" << std::endl;
+    exposureStats.modelPeriodUs = baseExposureUs(ccd.getCurParams());
+    exposureStats.periodUs = std::max({exposureStats.modelPeriodUs,exposureStats.minPeriodUs,linePeriodUs});
+    std::cout << "Line period " << exposureStats.periodUs << "us (requested " << linePeriodUs << "us, model " << exposureStats.modelPeriodUs
+              << "us, measured " << exposureStats.minPeriodUs << "us)" << std::endl;
+    if(exposureStats.minPeriodUs > exposureStats.modelPeriodUs * 1.05f){
+        std::cout << "Lines take longer than the timing model, check CCD_Ctrl::readoutScale/processingNsPerSample" << std::endl;
+    }
 }
 
 void LinearCamCtrl::moveLines(float lines){

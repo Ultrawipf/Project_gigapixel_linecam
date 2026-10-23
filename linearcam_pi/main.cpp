@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <map>
+#include <cstdio>
 
 // Commandline test utility
 struct ImgArgs : public argparse::Args {
@@ -59,10 +61,18 @@ struct PioArgs : public argparse::Args {
     std::string &output    = kwarg("o,output", "Dump raw 32 bit words of all lines to a file").set_default("");
     std::string &dmactrl   = kwarg("d,dmactrl", "Override RX DMACTRL after setup, e.g. 0x80000108").set_default("");
     uint32_t &skip         = kwarg("k,skip", "Lines skipped by the lane statistics, the first lines after start are not settled").set_default(5);
+    int &offset            = kwarg("O,offset", "AFE offset for all channels (rofs/gofs/bofs), -1 = 0x7E/0x77/0x7E").set_default(-1);
     float &freq            = kwarg("f,freq", "CCD clock in Hz, 0 = CCDCLOCK").set_default(0.0f);
     float &dataclk         = kwarg("y,dataclk", "Data SM clock in Hz, 0 = 18 x CCD clock, default PIODATACLOCK").set_default(-1.0f);
     int &delay             = kwarg("t,delay", "Data SM cycles from clock edge to sample, -1 = as assembled, default PIOSAMPLEDELAY").set_default(-100);
     int &tgdelay           = kwarg("g,tgdelay", "Data SM cycles from clock edges to TG edges, -1 = as assembled, default PIOTGDELAY").set_default(-100);
+};
+
+struct CalibArgs : public argparse::Args {
+    uint32_t &lines        = kwarg("l,lines", "Lines per exposure").set_default(60);
+    int &exposure          = kwarg("e,exposure", "First exposure in us, 0 = base exposure of each resolution").set_default(0);
+    float &ratio           = kwarg("r,ratio", "Second exposure = ratio x first").set_default(1.6f);
+    int &mm                = kwarg("m", "Home, then move to position in mm. Image center is at 53").set_default(0);
 };
 
 struct GammaArgs : public argparse::Args {
@@ -85,6 +95,7 @@ struct MyArgs : public argparse::Args {
     StepperArgs &motorargs    = subcommand("mot");
     TimingArgs &timingargs    = subcommand("timing");
     GammaArgs &gammaargs    = subcommand("gamma");
+    CalibArgs &calibargs    = subcommand("expcalib");
     PioArgs &pioargs    = subcommand("pio");
     MiscArgs &miscargs = subcommand("test");
 };
@@ -291,7 +302,12 @@ int main(int argc, char* argv[]) {
         }
         CCD_Resolution res = static_cast<CCD_Resolution>(std::min(4u,t.resdiv));
         ccd.setResolution(res);
-        ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
+        if(t.offset >= 0){
+            const uint8_t o = t.offset;
+            ccd.setRgbGainOfs({o,o,o,0x38,0x32,0x38});
+        }else{
+            ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
+        }
         const CCD_Parameters params = ccd.getCurParams();
         const uint32_t words = params.samplesPerLine / SAMPLESPERBUFFER;
         std::cout << "CCD clock " << CCD_Ctrl::ccdClockHz << " Hz, data SM " << (CCD_Ctrl::dataClockHz > 0 ? CCD_Ctrl::dataClockHz : CCD_Ctrl::ccdClockHz*18.0f) << " Hz, sample delay " << CCD_Ctrl::sampleDelay << ", TG delay " << CCD_Ctrl::tgDelay << std::endl;
@@ -364,6 +380,105 @@ int main(int argc, char* argv[]) {
             printf("%s%08x",i % 8 ? " " : "\n  ",dump[(size_t)skip*words+i]);
         }
         printf("\n");
+    }
+    if(args.calibargs.is_valid){
+        // Exposure calibration of every resolution on a static scene: readout vs timing model,
+        // black level per channel and sensitivity relative to full resolution.
+        // Two exposures T and r*T of the same pixels: s2 + b = r * (s1 + b)  ->  b = (s2 - r*s1) / (r - 1)
+        CalibArgs& t = args.calibargs;
+        CCD_Ctrl ccd;
+        LinearCamCtrl cam(motors,ccd);
+        pinctrl.setEnablePin(false);
+        sleep_ms(100);
+        pinctrl.setEnablePin(true);
+        ccd.setClock(true);
+        sleep_ms(500);
+        if(!ccd.initCCD()){
+            std::cout << "CCD init failed" << std::endl;
+            return 1;
+        }
+        if(t.mm){
+            motors.homeSlide();
+            motors.slideMotor_p->setEnable(true);
+            motors.slideMotor_p->moveToMM(t.mm,cam.moveSpeed,cam.moveAccel);
+        }
+        const float ratio = t.ratio;
+        struct Result{ float readout, model, base, minPeriod, sens; std::array<float,3> black; double fullScale; };
+        std::map<int,Result> results;
+        const char* tmpfile = "/tmp/expcalib.raw";
+        for(int r = 4;r >= 0;r--){
+            CCD_Resolution res = static_cast<CCD_Resolution>(r);
+            ccd.setResolution(res);
+            ccd.setRgbGainOfs({0x7E,0x77,0x7E,0x38,0x32,0x38});
+            const CCD_Parameters p = ccd.getCurParams();
+            const uint32_t width = p.validPixelEnd - p.validPixelBegin;
+            const float base = cam.baseExposureUs(p);
+            const int t1 = t.exposure > 0 ? t.exposure : (int)std::ceil(base/1000.0f)*1000;
+            const int t2 = t1 * ratio;
+            std::array<std::vector<double>,2> mean;
+            float readout = 0, minPeriod = 0;
+            for(int e = 0;e < 2;e++){
+                cam.linePeriodUs = e == 0 ? t1 : t2;
+                cam.recordTiming = true;
+                cam.captureImage(tmpfile,t.lines,0,std::nullopt,true);
+                cam.recordTiming = false;
+                if(e == 0){
+                    double sum = 0;
+                    size_t n = 0;
+                    for(size_t i = LinearCamCtrl::periodCalibLines;i<cam.lineTimings.size();i++){
+                        sum += (cam.lineTimings[i].readEnd - cam.lineTimings[i].readStart) / 1000.0;
+                        n++;
+                    }
+                    readout = n ? sum / n : 0;
+                    minPeriod = cam.exposureStats.minPeriodUs;
+                }
+                // Mean of every sample over all lines
+                std::ifstream f(tmpfile,std::ios::binary);
+                std::vector<uint16_t> line(width*3);
+                mean[e].assign(width*3,0.0);
+                uint32_t lines = 0;
+                while(f.read(reinterpret_cast<char*>(line.data()),line.size()*2)){
+                    for(size_t i = 0;i<line.size();i++) mean[e][i] += line[i];
+                    lines++;
+                }
+                for(double& v : mean[e]) v /= std::max<uint32_t>(1,lines);
+            }
+            std::remove(tmpfile);
+            Result res_{readout,CCD_Ctrl::readoutUs(p),base,minPeriod,0,{0,0,0},0};
+            double signal = 0;
+            size_t used = 0;
+            for(int c = 0;c < 3;c++){
+                std::vector<double> b;
+                for(size_t i = c;i<mean[0].size();i += 3){
+                    if(mean[0][i] > 300 && mean[1][i] < 60000){
+                        b.push_back((mean[1][i] - ratio*mean[0][i]) / (ratio - 1.0));
+                    }
+                }
+                std::sort(b.begin(),b.end());
+                res_.black[c] = b.empty() ? 0 : b[b.size()/2];
+                for(size_t i = c;i<mean[0].size();i += 3){
+                    if(mean[1][i] < 60000){
+                        signal += (mean[0][i] + res_.black[c]) / t1;
+                        used++;
+                    }
+                }
+            }
+            res_.fullScale = used ? signal / used : 0; // counts per us including the black level
+            results[r] = res_;
+        }
+        const char* names[] = {"Full","Div2","Div4","Div8","Preview"};
+        printf("CCD clock %.0f Hz, exposure ratio %.2f\n",CCD_Ctrl::ccdClockHz,ratio);
+        printf("res      readout   model    meas/model  base exp  min period  sensitivity  black R/G/B\n");
+        for(int r = 4;r >= 0;r--){
+            Result& x = results[r];
+            x.sens = results[0].fullScale > 0 ? x.fullScale / results[0].fullScale : 0;
+            printf("%-8s %8.1f %8.1f   %6.3f    %8.0f  %8.0f     %6.3f      %5.0f %5.0f %5.0f\n",names[r],x.readout,x.model,x.readout/x.model,x.base,x.minPeriod,x.sens,x.black[0],x.black[1],x.black[2]);
+        }
+        printf("Presets (getParamsFromResolution):\n");
+        for(int r = 4;r >= 0;r--){
+            Result& x = results[r];
+            printf("  %-8s .sensitivity = %.3ff\n",names[r],x.sens);
+        }
     }
     if(args.gammaargs.is_valid){
         // Compares the spng gamma decode (old low res path) with the 16 bit display LUT (new path)

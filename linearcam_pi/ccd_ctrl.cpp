@@ -177,6 +177,14 @@ void CCD_Ctrl::setResolution(CCD_Resolution res){
     setRgbGainOfs(curGainOfs); // Restore params
 }
 
+float CCD_Ctrl::readoutUs(const CCD_Parameters& p, float clockHz){
+    return p.samplesPerLine / clockHz * 1e6f * readoutScale + readoutOffsetUs;
+}
+
+float CCD_Ctrl::lineCostUs(const CCD_Parameters& p, float clockHz){
+    return readoutUs(p,clockHz) + p.samplesPerLine * processingNsPerSample * 1e-3f;
+}
+
 CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
     std::vector<int> lineOffsets;
     uint32_t maxShift = 0;
@@ -192,6 +200,8 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .moveLines = 1,
             .lineBuffers = maxShift+3,
             .lineOffsets = lineOffsets,
+            // linearcam_pi expcalib, 6 MHz, 2026-10-23 (mean of two runs)
+            .sensitivity = 1.0f,
         };
         break;
     case CCD_Resolution::Div2: // Main+Sub x1
@@ -206,6 +216,8 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
             .moveLines = 2,
             .lineBuffers = maxShift+3+8,
             .lineOffsets=lineOffsets, // /2
+            // linearcam_pi expcalib, 6 MHz, 2026-10-23 (mean of two runs)
+            .sensitivity = 1.008f,
         };
         break;
     case CCD_Resolution::Div4: // Main only
@@ -219,7 +231,9 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
 
             .moveLines = 4,
             .lineBuffers = maxShift+3+8,
-            .lineOffsets = lineOffsets // /4
+            .lineOffsets = lineOffsets, // /4
+            // linearcam_pi expcalib, 6 MHz, 2026-10-23 (mean of two runs)
+            .sensitivity = 1.012f,
         };
         break;
     case CCD_Resolution::Div8: // Main w. skip
@@ -233,7 +247,9 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
 
             .moveLines = 8,
             .lineBuffers = maxShift+3+4,
-            .lineOffsets = lineOffsets // /8
+            .lineOffsets = lineOffsets, // /8
+            // linearcam_pi expcalib, 6 MHz, 2026-10-23 (mean of two runs)
+            .sensitivity = 2.009f, // Pixels binned
         };
         break;
     case CCD_Resolution::Preview: // Mainw. skip
@@ -247,7 +263,9 @@ CCD_Parameters CCD_Ctrl::getParamsFromResolution(CCD_Resolution res){
 
             .moveLines = 12, // Should be 16?
             .lineBuffers = maxShift +3,
-            .lineOffsets = lineOffsets // /16
+            .lineOffsets = lineOffsets, // /16
+            // linearcam_pi expcalib, 6 MHz, 2026-10-23 (mean of two runs)
+            .sensitivity = 3.145f, // Pixels binned
         };
         break;
     }

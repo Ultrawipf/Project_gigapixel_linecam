@@ -107,12 +107,19 @@ public:
     struct ExposureStats{
         int requestedUs = 0;     // linePeriodUs at capture start, 0 = shortest
         int minPeriodUs = 0;     // shortest safe period measured during the calibration lines
+        int modelPeriodUs = 0;   // base exposure from the timing model
         int periodUs = 0;        // period used, this is the exposure time
         uint32_t lines = 0;      // lines started with the fixed period
         uint32_t lateLines = 0;  // lines started more than LINEPERIOD_LATE_US after their deadline
         int maxLateUs = 0;
     };
     ExposureStats exposureStats; // Of the current or last capture
+
+    // Base exposure = shortest safe line period of a resolution, from the timing model (CCD_Ctrl::lineCostUs).
+    // The capture also measures its first lines and uses the longer of both
+    static float baseExposureUs(const CCD_Parameters& p){
+        return CCD_Ctrl::lineCostUs(p) * LINEPERIOD_MARGIN + LINEPERIOD_EXTRA_US;
+    }
 
     std::unique_ptr<CCD_ImageCorrection> imageCorrection;
     CCD_Ctrl& ccd;
