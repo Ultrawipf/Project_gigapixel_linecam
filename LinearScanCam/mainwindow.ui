@@ -1663,6 +1663,16 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
                 </property>
                </widget>
               </item>
+              <item>
+               <widget class="QCheckBox" name="checkBox_previewexp">
+                <property name="toolTip">
+                 <string>Scan the preview with the exposure equivalent to the capture (same light per pixel). Slower</string>
+                </property>
+                <property name="text">
+                 <string>Preview exp</string>
+                </property>
+               </widget>
+              </item>
              </layout>
             </widget>
            </item>

@@ -277,6 +277,7 @@ MainWindow::CaptureSettings MainWindow::readCaptureSettings(CCD_Resolution res){
     s.nomovemode = ui->radioButton_linecam->isChecked();
     s.captureRes = (CCD_Resolution)ui->comboBox_resolution->currentIndex();
     s.captureResName = ui->comboBox_resolution->currentText();
+    s.previewExposure = ui->checkBox_previewexp->isChecked();
     s.exposureUs = exposureAtBase() ? 0 : ui->spinBox_exposuretime->value()*1000;
     s.delayS = ui->spinBox_delay->value();
     s.widthscale = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
@@ -424,7 +425,12 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     statusMsgCb("Capturing preview...");
     ctrl->pngCompressionLevel = PNG_COMPRESSION_LEVEL;
     motor.enableProgress = false;
-    ctrl->linePeriodUs = 0; // Preview scans fast at its own base exposure
+    // The capture collects more light than a fast preview: longer exposure, and below ~10k pixels per line the
+    // preview bins pixels (CCD_Parameters::sensitivity). With previewExposure the preview gets the same light
+    // per pixel as the capture: exposure * capture sensitivity / preview sensitivity. Otherwise it runs at its base
+    const CCD_Parameters captureParams = CCD_Ctrl::getParamsFromResolution(s.captureRes);
+    const float captureExposureUs = std::max<float>(s.exposureUs,LinearCamCtrl::baseExposureUs(captureParams));
+    ctrl->linePeriodUs = s.previewExposure ? captureExposureUs * captureParams.sensitivity / params.sensitivity : 0;
     ctrl->captureImageBlocking(previewFile.string(),lines,0,s.nomovemode);
     if(abortRequested){
         // Truncated preview file is not a valid image
@@ -440,13 +446,13 @@ void MainWindow::capturePreviewJob(CaptureSettings s){
     auto mover = motor.moveToMM(moveBackPos,ctrl->stepperMoveSpeed,ctrl->stepperMoveAccel);
     // Show preview
     showImageFile(previewFile);
-    // The capture collects more light than the preview: longer exposure, and below ~10k pixels per line the
-    // preview bins pixels (CCD_Parameters::sensitivity). Show the factor so the preview can be judged
-    const CCD_Parameters captureParams = CCD_Ctrl::getParamsFromResolution(s.captureRes);
-    const float captureExposureUs = std::max<float>(s.exposureUs,LinearCamCtrl::baseExposureUs(captureParams));
+    // Remaining brightness difference to the capture, shown when it is significant
     const float previewExposureUs = ctrl->exposureStats.periodUs;
     const float factor = (captureParams.sensitivity * captureExposureUs) / (params.sensitivity * previewExposureUs);
     QString previewText = QString("Preview %1 ms").arg(previewExposureUs/1000.0,0,'f',1);
+    if(s.previewExposure && factor <= 1.25f && factor >= 0.8f){
+        previewText += QString(" = capture %1 ms %2").arg(captureExposureUs/1000.0,0,'f',1).arg(s.captureResName);
+    }
     if(factor > 1.25f || factor < 0.8f){
         previewText += QString(", capture %1 ms %2 is x%3 brighter").arg(captureExposureUs/1000.0,0,'f',1).arg(s.captureResName).arg(factor,0,'f',1);
     }
@@ -507,6 +513,7 @@ void MainWindow::restoreSettings(ConfStore& config){
 
     ctrl->pnggamma = c["img"]["pnggamma"];
     ui->doubleSpinBox_gamma->setValue(ctrl->pnggamma);
+    ui->checkBox_previewexp->setChecked(c["img"]["previewexp"]);
     ui->spinBox_exposuretime->setMinimum(0); // Stored 0 = base
     ui->spinBox_exposuretime->setValue(c["img"]["exposurems"]);
     updateExposureBase();
@@ -532,6 +539,7 @@ void MainWindow::saveSettings(ConfStore& config){
     //c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     c["img"]["pnggamma"] = ctrl->pnggamma;
     c["img"]["exposurems"] = exposureAtBase() ? 0.0 : ui->spinBox_exposuretime->value();
+    c["img"]["previewexp"] = ui->checkBox_previewexp->isChecked();
     config.saveSettings(CONFFILE);
 }
 

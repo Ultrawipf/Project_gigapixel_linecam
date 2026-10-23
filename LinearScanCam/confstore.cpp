@@ -33,7 +33,8 @@ void ConfStore::loadSettings(std::string file){
     c["mot"]["slideaccel"] = 5;
 
     c["img"]["pnggamma"] = 1.0;
-    c["img"]["exposurems"] = 0; // Line period, 0 = shortest
+    c["img"]["exposurems"] = 0; // Line period, 0 = base exposure
+    c["img"]["previewexp"] = false; // Preview with the exposure equivalent to the capture
     c["img"]["pngcompress"] = 0;
 
     c["img"]["widthscale"] = 0.5;

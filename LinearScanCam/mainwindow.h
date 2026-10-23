@@ -40,6 +40,7 @@ public:
         int exposureUs = 0; // Line period of the capture, 0 = base exposure of captureRes
         CCD_Resolution captureRes = CCD_Resolution::Full; // Resolution the exposure is set for
         QString captureResName;
+        bool previewExposure = false; // Preview scans with the exposure equivalent to the capture
         int delayS = 0;
         float widthscale = 1;
     };
