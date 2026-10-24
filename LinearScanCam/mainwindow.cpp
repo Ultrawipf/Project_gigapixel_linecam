@@ -35,6 +35,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ctrl, &CameraControllerQt::ready,this,&MainWindow::setReady);
     updateControlsEnabled(); // Everything disabled until the camera is ready
     ui->pushButton_cancel->setVisible(false);
+    // Cancel shares the row with the progress bar: same height, so showing it does not grow the window out of fullscreen
+    ui->pushButton_cancel->setStyleSheet("padding: 0px 5px;");
+    ui->pushButton_cancel->setFixedHeight(ui->progressBar_scan->sizeHint().height());
     connect(ui->pushButton_cancel,&QPushButton::clicked,this,&MainWindow::cancelOperation);
 
     qDebug() << "Startpos:" << ctrl->imageStartPosMM << "End:" << ctrl->imageEndPosMM << "Center:" << ctrl->imageCenterPosMM;
