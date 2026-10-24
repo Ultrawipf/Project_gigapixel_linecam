@@ -518,7 +518,9 @@ void MainWindow::restoreSettings(ConfStore& config){
     ui->doubleSpinBox_gamma->setValue(ctrl->pnggamma);
     ui->checkBox_previewexp->setChecked(c["img"]["previewexp"]);
     ui->spinBox_exposuretime->setMinimum(0); // Stored 0 = base
-    ui->spinBox_exposuretime->setValue(c["img"]["exposurems"]);
+    // Exposure is not stored, it starts at base on every start
+    //ui->spinBox_exposuretime->setValue(c["img"]["exposurems"]);
+    ui->spinBox_exposuretime->setValue(0);
     updateExposureBase();
 
     // Motor
@@ -541,7 +543,7 @@ void MainWindow::saveSettings(ConfStore& config){
     c["ccd"]["res"] = ui->comboBox_resolution->currentIndex();
     //c["img"]["widthscale"] = (float)ui->horizontalSlider_imagewidth->value() / (float)ui->horizontalSlider_imagewidth->maximum();
     c["img"]["pnggamma"] = ctrl->pnggamma;
-    c["img"]["exposurems"] = exposureAtBase() ? 0.0 : ui->spinBox_exposuretime->value();
+    //c["img"]["exposurems"] = exposureAtBase() ? 0.0 : ui->spinBox_exposuretime->value();
     c["img"]["previewexp"] = ui->checkBox_previewexp->isChecked();
     config.saveSettings(CONFFILE);
 }
