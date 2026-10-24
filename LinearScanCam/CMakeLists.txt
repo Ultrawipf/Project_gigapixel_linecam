@@ -42,6 +42,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
         pcfioqt.h pcfioqt.cpp
         imageviewqt.h imageviewqt.cpp
         galleryqt.h galleryqt.cpp
+        exposurespinbox.h
 
 
     )

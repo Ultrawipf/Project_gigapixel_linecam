@@ -39,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->pushButton_cancel->setStyleSheet("padding: 0px 5px;");
     ui->pushButton_cancel->setFixedHeight(ui->progressBar_scan->sizeHint().height());
     connect(ui->pushButton_cancel,&QPushButton::clicked,this,&MainWindow::cancelOperation);
+    ui->label_4->installEventFilter(this); // Tap resets the exposure to base
 
     qDebug() << "Startpos:" << ctrl->imageStartPosMM << "End:" << ctrl->imageEndPosMM << "Center:" << ctrl->imageCenterPosMM;
 
@@ -672,7 +673,17 @@ void MainWindow::updateExposureBase(){
     if(atBase){
         sb->setValue(baseMs);
     }
-    ui->label_4->setText(QString("Exposure\nbase %1 ms").arg(baseMs,0,'f',1));
+    ui->label_4->setText(QString("Exposure ↺\nbase %1 ms").arg(baseMs,0,'f',1));
+}
+
+// Tapping the exposure label resets the exposure to base
+bool MainWindow::eventFilter(QObject* obj, QEvent* event){
+    if(obj == ui->label_4 && event->type() == QEvent::MouseButtonRelease){
+        if(ui->spinBox_exposuretime->isEnabled())
+            ui->spinBox_exposuretime->setValue(ui->spinBox_exposuretime->minimum());
+        return true;
+    }
+    return QMainWindow::eventFilter(obj,event);
 }
 
 bool MainWindow::exposureAtBase(){

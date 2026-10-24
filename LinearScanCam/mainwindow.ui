@@ -1627,7 +1627,7 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
                </widget>
               </item>
               <item>
-               <widget class="QDoubleSpinBox" name="spinBox_exposuretime">
+               <widget class="ExposureSpinBox" name="spinBox_exposuretime">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -2327,6 +2327,11 @@ QSpinBox::up-button,QDoubleSpinBox::up-button{
    <class>ImageviewQt</class>
    <extends>QGraphicsView</extends>
    <header>imageviewqt.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ExposureSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>exposurespinbox.h</header>
   </customwidget>
   <customwidget>
    <class>GalleryQt</class>

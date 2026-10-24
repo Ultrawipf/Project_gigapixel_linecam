@@ -50,6 +50,7 @@ public:
     void updateResEstimate();
     void updateExposureBase();
     bool exposureAtBase();
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
     // Runs f on the GUI thread. Direct call if already on it, queued otherwise
     template<typename F>
